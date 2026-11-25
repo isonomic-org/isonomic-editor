@@ -9,6 +9,8 @@ Newest first.
 - Option with the arrows on macOS, Control elsewhere, moves and selects by word and crosses into the next block at an edge. Command with Up and Down on macOS, Control with Home and End elsewhere, go to the document's start and end.
 - The caret blinks at the interval the theme gives, and any change to the selection or the text shows it at once. A theme that asks for a steady caret gets one.
 - Movement through the document's own order moved out of the state file into `moves.rs`.
+- The insert menu opens above the caret when there is no room for it below, and the view reports where it was drawn.
+- Checked by hand in a real window on Linux (virtual display, real pointer and key events): ticking a to-do, a double click on a word, the insert menu typed and confirmed at the bottom of the window.
 
 ## 2026-11-25: the insert menu
 

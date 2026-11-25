@@ -323,3 +323,34 @@ fn the_insert_menu_opens_filters_and_converts(cx: &mut TestAppContext) {
     type_text(cx, "said");
     assert!(markdown(&view, cx).ends_with("> said\n"), "{}", markdown(&view, cx));
 }
+
+#[ui::test]
+fn the_insert_menu_stays_inside_the_window(cx: &mut TestAppContext) {
+    // Enough paragraphs to put the caret on the window's last lines.
+    let long: String = (0..400).map(|n| format!("paragraph {n}\n\n")).collect();
+    let (view, cx) = open(cx, &long);
+    let ids = blocks(&view, cx);
+    let height = cx.update(|window, _| window.viewport_size().height);
+    let last_shown = ids
+        .iter()
+        .rev()
+        .find(|id| {
+            let at = view.read_with(cx, |view, _| view.caret_point(Position::new(**id, 0)));
+            at.is_some_and(|at| at.y < height - px(30.))
+        })
+        .copied()
+        .unwrap();
+    view.update(cx, |view, cx| {
+        view.state().update(cx, |state, cx| state.select(Selection::caret(last_shown, 0), cx));
+    });
+    settle(cx);
+    type_text(cx, "/");
+    settle(cx);
+    let bounds = view.read_with(cx, |view, _| view.menu_bounds()).expect("the menu is drawn");
+    let caret = view.read_with(cx, |view, _| view.caret_point(Position::new(last_shown, 0)));
+    assert!(bounds.origin.y >= px(0.) && bounds.origin.y + bounds.size.height <= height);
+    assert!(
+        bounds.origin.y + bounds.size.height <= caret.unwrap().y + px(1.),
+        "with no room below, it opens above the caret: {bounds:?}"
+    );
+}

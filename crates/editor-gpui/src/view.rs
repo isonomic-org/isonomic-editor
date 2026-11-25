@@ -43,6 +43,8 @@ pub struct EditorView {
     /// bottom, which scrolls a little more each frame.
     pub(crate) drag_past: Option<Point<Pixels>>,
     pub(crate) blink: Blink,
+    /// Where the insert menu was last drawn.
+    pub(crate) menu_drawn: Rc<Cell<Option<Bounds<Pixels>>>>,
     /// The rows: every block in document order, of which the list
     /// draws the ones in view.
     pub(crate) list: ListState,
@@ -73,6 +75,7 @@ impl EditorView {
             dragging: false,
             drag_past: None,
             blink: Blink::default(),
+            menu_drawn: Rc::default(),
             list: ListState::new(0, ListAlignment::Top, px(OVERDRAW)),
             listed: Rc::default(),
             drawn: Drawn::default(),
@@ -376,7 +379,7 @@ impl Render for EditorView {
             }))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::mouse_down))
             .child(surface)
-            .children(self.render_menu(cx))
+            .children(self.render_menu(window, cx))
             .child(
                 div()
                     .absolute()
