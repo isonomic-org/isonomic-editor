@@ -380,6 +380,30 @@ impl Document {
         Ok(())
     }
 
+    /// Replaces a block's type, properties, tunes and text with what a
+    /// store read back, and reports whether anything differed. Meant
+    /// for stores; editing goes through [`Document::apply`].
+    pub fn refresh(
+        &mut self,
+        id: BlockId,
+        kind: BlockKind,
+        props: crate::Props,
+        tunes: crate::Props,
+        text: InlineText,
+    ) -> Result<bool, ModelError> {
+        let old = self.get(id).ok_or(ModelError::UnknownBlock(id))?;
+        let content = shape(&self.inner.registry, &kind, text);
+        if old.kind == kind && old.props == props && old.tunes == tunes && old.content == content {
+            return Ok(false);
+        }
+        let inner = Arc::make_mut(&mut self.inner);
+        inner.revision += 1;
+        let block = inner.block_mut(id);
+        (block.kind, block.props, block.tunes, block.content) = (kind, props, tunes, content);
+        inner.touch(id);
+        Ok(true)
+    }
+
     fn check(&self, op: &Op) -> Result<(), ModelError> {
         let known = |id: BlockId| {
             if self.contains(id) { Ok(()) } else { Err(ModelError::UnknownBlock(id)) }

@@ -1,18 +1,21 @@
 // Copyright 2026 Anud Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use editor_model::{
     ATOM_CHAR, BlockId, Changes, Content, Document, InlineText, Intent, Limits, ModelError,
     Normalizer, Op, Position, Registry, Selection, SeqIds, Transaction,
 };
 use loro::cursor::Side;
+use loro::event::Diff;
 use loro::{
-    ExpandType, ExportMode, LoroDoc, LoroTree, StyleConfig, StyleConfigMap, UndoManager,
-    VersionVector,
+    ExpandType, ExportMode, Index, LoroDoc, LoroTree, StyleConfig, StyleConfigMap, Subscription,
+    TreeID, UndoManager, VersionVector,
 };
 
 use crate::anchor::Anchor;
@@ -69,8 +72,26 @@ struct Step {
     after: Option<Selection>,
 }
 
+/// What the replicated document reported as changed while the store
+/// was listening: the blocks, or that the tree's shape changed.
+#[derive(Default)]
+struct Seen {
+    structure: bool,
+    nodes: HashSet<TreeID>,
+}
+
+#[derive(Default)]
+struct Watch {
+    armed: AtomicBool,
+    seen: Mutex<Seen>,
+}
+
 /// One replicated document and its current snapshot.
 pub struct Store {
+    watch: Arc<Watch>,
+    _subscription: Subscription,
+    by_node: HashMap<TreeID, BlockId>,
+    full_reads: usize,
     doc: LoroDoc,
     tree: LoroTree,
     undo: UndoManager,
@@ -92,6 +113,11 @@ impl Store {
     }
 
     pub fn with_limits(registry: Arc<Registry>, replica: u64, limits: Limits) -> Self {
+        Self::assemble(Self::blank(replica), registry, limits)
+    }
+
+    /// An empty replicated document with its text styles declared.
+    fn blank(replica: u64) -> LoroDoc {
         let doc = LoroDoc::new();
         // A replica number the library rejects falls back to its own.
         let _ = doc.set_peer_id(replica);
@@ -102,6 +128,10 @@ impl Store {
         }
         styles.insert(ATOM_KEY.into(), StyleConfig { expand: ExpandType::None });
         doc.config_text_style(styles);
+        doc
+    }
+
+    fn assemble(doc: LoroDoc, registry: Arc<Registry>, limits: Limits) -> Self {
         let tree = doc.get_tree(TREE);
         tree.enable_fractional_index(0);
         let mut undo = UndoManager::new(&doc);
@@ -109,7 +139,31 @@ impl Store {
         undo.set_max_undo_steps(MAX_UNDO_COMMITS);
         undo.add_exclude_origin_prefix("sys:");
         let snapshot = Document::with_limits(registry.clone(), limits.clone());
+        let watch = Arc::new(Watch::default());
+        let sink = watch.clone();
+        let subscription = doc.subscribe_root(Arc::new(move |event| {
+            if !sink.armed.load(Ordering::Relaxed) {
+                return;
+            }
+            let Ok(mut seen) = sink.seen.lock() else { return };
+            for change in &event.events {
+                let node = change.path.iter().find_map(|(_, index)| match index {
+                    Index::Node(node) => Some(*node),
+                    _ => None,
+                });
+                match node {
+                    Some(node) if !matches!(change.diff, Diff::Tree(_)) => {
+                        seen.nodes.insert(node);
+                    }
+                    _ => seen.structure = true,
+                }
+            }
+        }));
         Self {
+            watch,
+            _subscription: subscription,
+            by_node: HashMap::new(),
+            full_reads: 0,
             ids: SeqIds::new(doc.peer_id()),
             doc,
             tree,
@@ -127,8 +181,11 @@ impl Store {
     /// Opens a document from bytes written by [`Store::export_snapshot`]
     /// or [`Store::export_since`].
     pub fn open(registry: Arc<Registry>, replica: u64, bytes: &[u8]) -> Result<Self, StoreError> {
-        let mut store = Self::new(registry, replica);
-        store.doc.import(bytes).map_err(replication)?;
+        // Bytes are read before anything listens to the document, so
+        // opening does not compute a change event for every block.
+        let doc = Self::blank(replica);
+        doc.import(bytes).map_err(replication)?;
+        let mut store = Self::assemble(doc, registry, Limits::default());
         store.rebuild();
         Ok(store)
     }
@@ -215,10 +272,9 @@ impl Store {
     /// Reverts this replica's last step. Other replicas' edits stay.
     pub fn undo(&mut self) -> Option<Undone> {
         let step = self.steps.pop()?;
-        for _ in 0..step.commits {
-            let _ = self.undo.undo();
-        }
-        let changes = self.rebuild();
+        let changes = self.observe(|store| {
+            (0..step.commits).fold(false, |any, _| store.undo.undo().unwrap_or(false) || any)
+        });
         let selection = step.before.clone();
         self.undone.push(step);
         Some(Undone { changes, selection })
@@ -226,10 +282,9 @@ impl Store {
 
     pub fn redo(&mut self) -> Option<Undone> {
         let step = self.undone.pop()?;
-        for _ in 0..step.commits {
-            let _ = self.undo.redo();
-        }
-        let changes = self.rebuild();
+        let changes = self.observe(|store| {
+            (0..step.commits).fold(false, |any, _| store.undo.redo().unwrap_or(false) || any)
+        });
         let selection = step.after.clone();
         self.steps.push(step);
         Some(Undone { changes, selection })
@@ -253,8 +308,13 @@ impl Store {
 
     /// Merges bytes from another replica and reports what changed.
     pub fn import(&mut self, bytes: &[u8]) -> Result<Changes, StoreError> {
-        self.doc.import(bytes).map_err(replication)?;
-        let mut changes = self.rebuild();
+        let mut imported = Ok(());
+        let mut changes = self.observe(|store| {
+            let before = store.doc.oplog_frontiers();
+            imported = store.doc.import(bytes).map(|_| ()).map_err(replication);
+            before != store.doc.oplog_frontiers()
+        });
+        imported?;
         let mut dirty = false;
         self.doc.set_next_commit_origin(SYSTEM_ORIGIN);
         let repaired = self.normalize(&mut changes, &mut dirty);
@@ -300,6 +360,11 @@ impl Store {
                 Op::RemoveBlock { id } if self.snapshot.contains(*id) => self.snapshot.subtree(*id),
                 _ => Vec::new(),
             };
+            let doomed_nodes: Vec<TreeID> = doomed
+                .iter()
+                .filter_map(|id| self.handles.get(id))
+                .map(|block| block.node)
+                .collect();
             self.snapshot.apply(op)?;
             let id = op.target();
             let content = self.snapshot.get(id).map(|block| block.content.clone());
@@ -321,6 +386,12 @@ impl Store {
             write::apply(&self.tree, &mut self.handles, written, kept).map_err(replication)?;
             for gone in doomed {
                 self.handles.remove(&gone);
+            }
+            for node in doomed_nodes {
+                self.by_node.remove(&node);
+            }
+            if let (Op::InsertBlock { .. }, Some(block)) = (op, self.handles.get(&id)) {
+                self.by_node.insert(block.node, id);
             }
             if matches!(op, Op::ReplaceText { .. } | Op::AddMark { .. } | Op::RemoveMark { .. })
                 && let (Some(handles), Some(content)) = (self.handles.get(&id), &content)
@@ -354,6 +425,47 @@ impl Store {
         result
     }
 
+    /// How many times the whole document has been re-read. Undo, redo
+    /// and import refresh only the blocks that changed unless the
+    /// tree's shape changed; tests watch this to keep it so.
+    #[doc(hidden)]
+    pub fn full_reads(&self) -> usize {
+        self.full_reads
+    }
+
+    /// Runs `act`, which changes the replicated document from outside
+    /// a transaction, and brings the snapshot up to date. `act`
+    /// returns whether it changed anything.
+    fn observe(&mut self, act: impl FnOnce(&mut Self) -> bool) -> Changes {
+        if let Ok(mut seen) = self.watch.seen.lock() {
+            *seen = Seen::default();
+        }
+        self.watch.armed.store(true, Ordering::Relaxed);
+        let acted = act(self);
+        self.watch.armed.store(false, Ordering::Relaxed);
+        let seen = self.watch.seen.lock().map(|mut seen| std::mem::take(&mut *seen)).ok();
+        let Some(seen) = seen.filter(|seen| !seen.structure) else { return self.rebuild() };
+        if seen.nodes.is_empty() {
+            // Nothing reported: either nothing happened, or the change
+            // was not reported and only a full read is safe.
+            return if acted { self.rebuild() } else { Changes::default() };
+        }
+        let mut changes = Changes::default();
+        for node in seen.nodes {
+            let read = self.by_node.get(&node).and_then(|id| {
+                let block = read::block_of(self.handles.get(id)?, &self.registry)?;
+                Some((*id, block))
+            });
+            let Some((id, (kind, props, tunes, text))) = read else { return self.rebuild() };
+            match self.snapshot.refresh(id, kind, props, tunes, text) {
+                Ok(true) => changes.changed.push(id),
+                Ok(false) => {}
+                Err(_) => return self.rebuild(),
+            }
+        }
+        changes
+    }
+
     /// Re-reads the replicated document and reports what differs from
     /// the previous snapshot.
     fn rebuild(&mut self) -> Changes {
@@ -363,7 +475,9 @@ impl Store {
             self.ids.observe(*id);
         }
         self.snapshot = snapshot;
+        self.by_node = handles.iter().map(|(id, block)| (block.node, *id)).collect();
         self.handles = handles;
+        self.full_reads += 1;
         changes
     }
 }

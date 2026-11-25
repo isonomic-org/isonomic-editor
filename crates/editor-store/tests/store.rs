@@ -235,3 +235,50 @@ fn limits_degrade_on_load() {
     assert_eq!(small.snapshot().len(), 3);
     assert!(Store::open(registry(), 3, b"not a document").is_err());
 }
+
+#[test]
+fn text_changes_from_outside_refresh_only_their_blocks() {
+    let mut one = Store::new(registry(), 1);
+    let a = add(&mut one, None, 0, "alpha");
+    let b = add(&mut one, None, 1, "beta");
+    let mut two = Store::open(registry(), 2, &one.export_snapshot().unwrap()).unwrap();
+    let base = (one.full_reads(), two.full_reads());
+
+    // Undo and redo of text, marks and properties.
+    let edit = tx(vec![
+        replace(a, 5..5, "!"),
+        Op::AddMark { id: b, range: 0..2, mark: Mark::Bold },
+        Op::SetProp { id: b, key: "level".into(), value: Some(PropValue::Int(3)) },
+        Op::SetKind { id: a, kind: BlockKind::new(kinds::CODE) },
+    ]);
+    one.apply(&edit, None).unwrap();
+    let undone = one.undo().unwrap();
+    assert_eq!(undone.changes.added.len() + undone.changes.removed.len(), 0);
+    let mut changed = undone.changes.changed.clone();
+    changed.sort();
+    assert_eq!(changed, [a, b]);
+    assert_matches_bytes(&one);
+    assert_eq!(text(&one, a), "alpha");
+    one.redo().unwrap();
+    assert_matches_bytes(&one);
+    assert_eq!(one.snapshot().get(b).unwrap().props.get("level"), Some(&PropValue::Int(3)));
+
+    // A remote text edit, and an import that brings nothing.
+    let changes = two.import(&one.export_since(&two.version()).unwrap()).unwrap();
+    assert_eq!(changes.changed.len(), 2);
+    assert!(two.import(&one.export_since(&two.version()).unwrap()).unwrap().is_empty());
+    let (x, y) = (one.snapshot(), two.snapshot());
+    assert_eq!((x.get(a), x.get(b)), (y.get(a), y.get(b)));
+    assert_eq!((one.full_reads(), two.full_reads()), base, "no whole-document read was needed");
+
+    // A change to the tree's shape still re-reads everything.
+    let c = add(&mut one, Some(a), 0, "child");
+    one.undo().unwrap();
+    assert!(!one.snapshot().contains(c));
+    assert!(one.full_reads() > base.0);
+    one.redo().unwrap();
+    let changes = two.import(&one.export_since(&two.version()).unwrap()).unwrap();
+    assert_eq!(changes.added, [c]);
+    assert_matches_bytes(&one);
+    assert_matches_bytes(&two);
+}
