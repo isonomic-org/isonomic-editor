@@ -5,6 +5,7 @@ Newest first.
 ## 2026-11-25: a hint in an empty paragraph
 
 - `docs/keys.md` lists every key, typing shortcut and pointer gesture. The word key (Control off macOS) now removes a word with Backspace or Delete, as Option already did.
+- A test runs every bound key twice, the insert menu, the typing shortcuts, single to triple clicks inside and outside the window, reversed and out-of-range input method ranges and a paste of control characters over six awkward documents (empty, only a divider, an empty code block, empty nested items, combining marks with joiners and a direction override). Nothing panicked and each ends with at least one block.
 - An empty paragraph that holds the caret shows "Type / to insert a block" in the muted color. It is drawn in the leaf and is not part of the document: a click in it leaves the caret at the start, and typing replaces it.
 
 ## 2026-11-25: a composition is one undo step
