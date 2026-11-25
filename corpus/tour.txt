@@ -1,0 +1,15 @@
+Isonomic Editor
+A document is a tree of blocks. Text carries marks, such as code, strike and links.
+Lists
+A bulleted item
+  A nested item
+    Numbered inside
+    And again
+A finished to-do
+An open to-do
+A quote
+on two lines
+fn main() {
+    println!("code keeps its spacing");
+}
+The end

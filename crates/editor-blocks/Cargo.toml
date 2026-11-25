@@ -1,0 +1,17 @@
+[package]
+name = "editor-blocks"
+description = "Headless specs for the standard block set."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+editor-model.workspace = true
+editor-commands.workspace = true
+editor-formats.workspace = true
+
+[dev-dependencies]
+editor-store.workspace = true
+
+[lints]
+workspace = true

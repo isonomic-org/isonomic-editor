@@ -1,0 +1,16 @@
+[package]
+name = "editor-store"
+description = "The replicated document: transactions, undo, anchors, export and import."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+editor-model.workspace = true
+loro = "=1.18.0"
+
+[dev-dependencies]
+
+
+[lints]
+workspace = true

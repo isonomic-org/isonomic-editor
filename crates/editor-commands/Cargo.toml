@@ -1,0 +1,15 @@
+[package]
+name = "editor-commands"
+description = "Editing commands, input rules and normalization, as pure functions."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+editor-model.workspace = true
+
+[dev-dependencies]
+
+
+[lints]
+workspace = true

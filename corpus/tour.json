@@ -1,0 +1,175 @@
+{
+  "blocks": [
+    {
+      "children": [],
+      "content": {
+        "text": "Isonomic Editor"
+      },
+      "id": "00000000000000010000000000000001",
+      "props": {
+        "level": 1
+      },
+      "tunes": {},
+      "type": "heading"
+    },
+    {
+      "children": [],
+      "content": {
+        "marks": [
+          {
+            "end": 30,
+            "start": 24,
+            "type": "bold"
+          },
+          {
+            "end": 50,
+            "start": 45,
+            "type": "italic"
+          },
+          {
+            "end": 72,
+            "start": 66,
+            "type": "strike"
+          },
+          {
+            "end": 64,
+            "start": 60,
+            "type": "code"
+          },
+          {
+            "end": 82,
+            "start": 77,
+            "type": "link",
+            "value": "https://isonomic.com"
+          }
+        ],
+        "text": "A document is a tree of blocks. Text carries marks, such as code, strike and links."
+      },
+      "id": "00000000000000010000000000000002",
+      "props": {},
+      "tunes": {},
+      "type": "paragraph"
+    },
+    {
+      "children": [],
+      "content": {
+        "text": "Lists"
+      },
+      "id": "00000000000000010000000000000003",
+      "props": {
+        "level": 2
+      },
+      "tunes": {},
+      "type": "heading"
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "content": {
+                "text": "Numbered inside"
+              },
+              "id": "00000000000000010000000000000006",
+              "props": {},
+              "tunes": {},
+              "type": "numbered_list"
+            },
+            {
+              "children": [],
+              "content": {
+                "text": "And again"
+              },
+              "id": "00000000000000010000000000000007",
+              "props": {},
+              "tunes": {},
+              "type": "numbered_list"
+            }
+          ],
+          "content": {
+            "text": "A nested item"
+          },
+          "id": "00000000000000010000000000000005",
+          "props": {},
+          "tunes": {},
+          "type": "bulleted_list"
+        }
+      ],
+      "content": {
+        "text": "A bulleted item"
+      },
+      "id": "00000000000000010000000000000004",
+      "props": {},
+      "tunes": {},
+      "type": "bulleted_list"
+    },
+    {
+      "children": [],
+      "content": {
+        "text": "A finished to-do"
+      },
+      "id": "00000000000000010000000000000008",
+      "props": {
+        "checked": true
+      },
+      "tunes": {},
+      "type": "todo"
+    },
+    {
+      "children": [],
+      "content": {
+        "text": "An open to-do"
+      },
+      "id": "00000000000000010000000000000009",
+      "props": {
+        "checked": false
+      },
+      "tunes": {},
+      "type": "todo"
+    },
+    {
+      "children": [],
+      "content": {
+        "text": "A quote\non two lines"
+      },
+      "id": "0000000000000001000000000000000a",
+      "props": {},
+      "tunes": {},
+      "type": "quote"
+    },
+    {
+      "children": [],
+      "content": null,
+      "id": "0000000000000001000000000000000b",
+      "props": {},
+      "tunes": {},
+      "type": "divider"
+    },
+    {
+      "children": [],
+      "content": {
+        "text": "fn main() {\n    println!(\"code keeps its spacing\");\n}"
+      },
+      "id": "0000000000000001000000000000000c",
+      "props": {
+        "language": "rust"
+      },
+      "tunes": {},
+      "type": "code"
+    },
+    {
+      "children": [],
+      "content": {
+        "text": "The end"
+      },
+      "id": "0000000000000001000000000000000d",
+      "props": {
+        "level": 3
+      },
+      "tunes": {},
+      "type": "heading"
+    }
+  ],
+  "format": "isonomic.doc/1"
+}
