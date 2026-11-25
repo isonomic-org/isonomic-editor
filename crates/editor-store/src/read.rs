@@ -62,6 +62,16 @@ fn fields(meta: &LoroMap) -> Option<(BlockId, Option<String>, Props, Props)> {
     Some((id?, kind, props, tunes))
 }
 
+/// One block's current type, properties, tunes and text.
+pub fn block_of(
+    handles: &Handles,
+    registry: &Registry,
+) -> Option<(BlockKind, Props, Props, InlineText)> {
+    let (_, kind, props, tunes) = fields(&handles.meta)?;
+    let kind = kind.map_or_else(|| registry.default_kind(), |kind| BlockKind::new(&kind));
+    Some((kind, props, tunes, text_of(&handles.text)))
+}
+
 /// Reads the whole tree. Nodes that are malformed, duplicated or past
 /// a limit are skipped with everything under them; nothing panics.
 pub fn materialize(

@@ -51,7 +51,12 @@ fn main() {
 
     let started = Instant::now();
     store.undo().expect("undo");
-    println!("undo: {:?}", started.elapsed());
+    println!("undo a split (re-reads the document): {:?}", started.elapsed());
+
+    let started = Instant::now();
+    store.undo().expect("undo");
+    println!("undo a run of typing (refreshes one block): {:?}", started.elapsed());
+    store.redo().expect("redo");
 
     let started = Instant::now();
     let bytes = store.export_snapshot().expect("export");

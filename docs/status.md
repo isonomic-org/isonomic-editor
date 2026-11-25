@@ -2,6 +2,20 @@
 
 Newest first.
 
+## 2026-11-25: undo, redo and import refresh only what changed
+
+- The store listens to the replicated document while an undo, redo or import runs, and refreshes only the blocks it reports. A change to the tree's shape still re-reads the whole document.
+- Opening reads the bytes before anything listens to the document.
+- A new test asserts that text, mark, property and type changes from outside a transaction cause no whole-document read.
+
+| | 10,000 blocks | 49,000 blocks |
+|---|---|---|
+| Undo a run of 2,000 keystrokes | 27 ms | 25 ms |
+| Undo a split (shape change) | 76 ms | 382 ms |
+| Open from a snapshot | 0.22 s | 1.76 s |
+
+Still open: shape changes should be applied from the reported tree changes instead of a full read, and opening spends about 70% of its time inside the replication library's import. The spike measured 41 ms for 10,000 blocks built in batches of 1,000 per commit with no text styles declared; which of those differences matters has not been measured.
+
 ## 2026-11-25: licence
 
 The repository is licensed under GPL-3.0-or-later: LICENSE at the root, the licence field in every manifest, and the copyright and SPDX lines at the top of every Rust source file. SECURITY.md says how to report a vulnerability. No behaviour changed.
@@ -32,7 +46,7 @@ The repository is licensed under GPL-3.0-or-later: LICENSE at the root, the lice
 **Not done, in the order it should be done.**
 
 1. **Nothing is drawn yet.** `editor-gpui`, `ui` and the playground do not exist. The component library was confirmed to compile on Linux at revision `834fc6a5`; the text seam has not been exercised. This is milestone 1's first task and the spec's second spike.
-2. **Undo, redo and import re-read the whole document.** Correct, but 65 ms at 10,000 blocks. The fix is to refresh only the blocks the replication library reports as changed, and fall back to a full read when the tree's shape changed.
+2. ~~Undo, redo and import re-read the whole document.~~ Done for everything but shape changes; see the entry above.
 3. **Opening is slower than the spike measured** (0.27 s against 41 ms at 10,000 blocks). The spike's blocks carried less. Opening must stay off the main thread; the cause needs a profile before milestone 2.
 4. **Nothing has run on macOS.** All numbers above are from Linux.
 5. Limits not yet enforced: property size in bytes, table size (tables are milestone 3), normalization work per transaction.
