@@ -238,3 +238,33 @@ fn the_caret_is_scrolled_into_view(cx: &mut TestAppContext) {
     let y = caret_y(&view, cx, 0);
     assert!(y >= px(0.) && y < height, "and back at the top, at {y:?}");
 }
+
+#[ui::test]
+fn home_and_end_stop_at_the_visual_line(cx: &mut TestAppContext) {
+    let words = "wrap ".repeat(400);
+    let (view, cx) = open(cx, words.trim_end());
+    let id = blocks(&view, cx)[0];
+    let length = words.trim_end().len();
+    let caret = |view: &Entity<EditorView>, cx: &mut VisualTestContext| {
+        let head = selection(view, cx).head().unwrap();
+        (head.offset, view.read_with(cx, |view, _| view.caret_point(head)).unwrap())
+    };
+    let (_, top) = caret(&view, cx);
+
+    keys(cx, "end");
+    let (first_end, at) = caret(&view, cx);
+    assert!(first_end > 0 && first_end < length, "the first line's end, not the block's");
+    assert_eq!(at.y, top.y, "the caret stays on its line");
+    keys(cx, "end");
+    assert_eq!(caret(&view, cx).0, first_end, "end twice stays put");
+
+    keys(cx, "down end");
+    let (second_end, low) = caret(&view, cx);
+    assert!(second_end > first_end && second_end < length && low.y > top.y);
+    keys(cx, "home");
+    let (second_start, start) = caret(&view, cx);
+    assert!(second_start > first_end && second_start < second_end);
+    assert_eq!(start.y, low.y);
+    keys(cx, "shift-end");
+    assert_eq!(selection(&view, cx), Selection::range(id, second_start, second_end));
+}
