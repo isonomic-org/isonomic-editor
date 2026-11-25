@@ -156,3 +156,69 @@ fn a_click_past_the_end_of_a_line_lands_at_its_end(cx: &mut TestAppContext) {
         assert_eq!(selection(&view, cx), Selection::caret(ids[index], 0), "block {index}");
     }
 }
+
+#[ui::test]
+fn any_document_takes_every_key_and_click(cx: &mut TestAppContext) {
+    use common::type_text;
+    use ui::{ClipboardItem, EntityInputHandler as _};
+    let every_key = "left right up down home end shift-left shift-right shift-up shift-down \
+        shift-home shift-end word-left word-right word-shift-left word-shift-right \
+        document-start document-end backspace delete alt-backspace alt-delete word-backspace \
+        word-delete enter tab shift-tab escape secondary-a secondary-b secondary-i secondary-u \
+        secondary-shift-x secondary-e secondary-c secondary-x secondary-v secondary-z \
+        secondary-shift-z secondary-a secondary-a backspace secondary-z";
+    let documents = [
+        "",
+        "---\n",
+        "```\n\n```\n",
+        "- [ ] \n  - \n    1. \n",
+        "# \n\n> \n\n---\n\n---\n",
+        "e\u{301}\u{301}👩‍👩‍👧\u{200D}\u{FEFF}\n\n\u{202E}abc\n",
+    ];
+    for document in documents {
+        let (view, cx) = open(cx, document);
+        // Each key twice over: once as the document stands, once after
+        // the first pass has changed it.
+        for _ in 0..2 {
+            keys(cx, every_key);
+            type_text(cx, "/");
+            keys(cx, "down up enter");
+            type_text(cx, "- ");
+            type_text(cx, "```");
+            type_text(cx, "---");
+        }
+        let window = cx.update(|window, _| window.viewport_size());
+        let spots = [
+            point(px(-10.), px(-10.)),
+            point(px(3.), px(3.)),
+            point(window.width - px(2.), px(40.)),
+            point(px(200.), window.height + px(500.)),
+        ];
+        for at in spots {
+            for clicks in 1..=3 {
+                press(cx, at, clicks);
+            }
+        }
+        // What an input method or a paste might send.
+        cx.update(|window, cx| {
+            cx.write_to_clipboard(ClipboardItem::new_string(
+                "\u{0}\n\n\n```\n- [x] \t\r\n> ".into(),
+            ));
+            view.update(cx, |view, cx| {
+                // Ranges that run backwards, as a confused caller might send.
+                let backwards = |start: usize, end: usize| std::ops::Range { start, end };
+                let (replace, select) = (backwards(50, 9), backwards(7, 3));
+                view.replace_and_mark_text_in_range(Some(replace), "か", Some(select), window, cx);
+                view.replace_text_in_range(Some(usize::MAX - 1..usize::MAX), "", window, cx);
+                view.unmark_text(window, cx);
+                let _ = view.text_for_range(backwards(4, 2), &mut None, window, cx);
+                let _ = view.bounds_for_range(0..999, Default::default(), window, cx);
+            });
+        });
+        keys(cx, "secondary-v secondary-v secondary-a secondary-a secondary-a delete");
+        settle(cx);
+        let ids = blocks(&view, cx);
+        assert!(!ids.is_empty(), "a document always has a block: {document:?}");
+        let _ = (markdown(&view, cx), selection(&view, cx));
+    }
+}
