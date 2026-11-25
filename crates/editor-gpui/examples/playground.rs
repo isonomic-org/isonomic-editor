@@ -11,9 +11,8 @@ use editor_gpui::{EditorState, EditorView};
 use ui::assets::Assets;
 use ui::component::ActiveTheme as _;
 use ui::{
-    AppContext as _, Bounds, Context, Entity, Focusable as _, InteractiveElement as _, IntoElement,
-    ParentElement as _, Render, StatefulInteractiveElement as _, Styled as _, Window, WindowBounds,
-    WindowOptions, div, px, size,
+    AppContext as _, Bounds, Context, Entity, Focusable as _, IntoElement, ParentElement as _,
+    Render, Styled as _, Window, WindowBounds, WindowOptions, div, px, size,
 };
 
 const TOUR: &str = include_str!("../../../corpus/tour.md");
@@ -25,9 +24,7 @@ struct Page {
 impl Render for Page {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
-            .id("page")
             .size_full()
-            .overflow_y_scroll()
             .bg(cx.theme().background)
             .text_color(cx.theme().foreground)
             .p_8()

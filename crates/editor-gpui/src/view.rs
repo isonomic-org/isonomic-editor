@@ -11,8 +11,9 @@ use ui::component::ActiveTheme as _;
 use ui::{
     AnyElement, App, Bounds, ClipboardItem, Context, Entity, EntityInputHandler, FocusHandle,
     Focusable, Hsla, InteractiveElement as _, IntoElement, MouseButton, MouseDownEvent,
-    MouseMoveEvent, ParentElement as _, Pixels, Point, Render, Styled as _, Subscription,
-    UTF16Selection, Window, div, point, px, size,
+    MouseMoveEvent, ParentElement as _, Pixels, Point, Render, ScrollHandle,
+    StatefulInteractiveElement as _, Styled as _, Subscription, UTF16Selection, Window, div, point,
+    px, size,
 };
 
 use crate::actions::*;
@@ -30,6 +31,9 @@ pub struct EditorView {
     keys: HashMap<BlockId, u64>,
     next_key: u64,
     dragging: bool,
+    scroll: ScrollHandle,
+    /// The head as of the last frame; a change scrolls it into view.
+    last_head: Option<Position>,
     _observe: Subscription,
 }
 
@@ -43,6 +47,8 @@ impl EditorView {
             keys: HashMap::new(),
             next_key: 1,
             dragging: false,
+            scroll: ScrollHandle::new(),
+            last_head: None,
             _observe: observe,
         }
     }
@@ -289,6 +295,9 @@ impl Render for EditorView {
             }
             _ => None,
         };
+        let head = selection.head();
+        let reveal = head != self.last_head;
+        self.last_head = head;
         let decorations = self.decorations(&doc, &selection, selection_color);
         self.frame.borrow_mut().order = order;
         let surface = Surface {
@@ -299,12 +308,16 @@ impl Render for EditorView {
             caret_color,
             focus: self.focus.clone(),
             view: cx.entity(),
+            scroll: self.scroll.clone(),
+            reveal,
         };
         div()
             .id("isonomic-editor")
             .key_context(CONTEXT)
             .track_focus(&self.focus)
             .size_full()
+            .overflow_y_scroll()
+            .track_scroll(&self.scroll)
             .on_action(cx.listener(|this, _: &Backspace, _, cx| {
                 this.edit(cx, |s, cx| s.backspace(false, cx))
             }))

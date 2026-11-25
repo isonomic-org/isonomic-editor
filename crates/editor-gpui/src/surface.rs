@@ -14,8 +14,8 @@ use editor_model::BlockId;
 use ui::base::text::editor_host::{Caret, LeafGeometry, collect_leaf_geometry};
 use ui::{
     AnyElement, App, Bounds, Element, ElementId, ElementInputHandler, Entity, FocusHandle,
-    GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId, Pixels, Window, fill, px,
-    size,
+    GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId, Pixels, ScrollHandle, Window,
+    fill, px, size,
 };
 
 use crate::view::EditorView;
@@ -42,6 +42,10 @@ pub struct Surface {
     pub caret_color: Hsla,
     pub focus: FocusHandle,
     pub view: Entity<EditorView>,
+    /// The scrolling container, and whether to bring the caret into
+    /// its view this frame.
+    pub scroll: ScrollHandle,
+    pub reveal: bool,
 }
 
 impl IntoElement for Surface {
@@ -98,6 +102,24 @@ impl Element for Surface {
             Some(Bounds::new(at, size(CARET_WIDTH, leaf.caret_height())))
         });
         self.frame.borrow_mut().leaves = leaves;
+        if let (true, Some(caret)) = (self.reveal, caret) {
+            let view = self.scroll.bounds();
+            let (top, bottom) = (caret.origin.y, caret.origin.y + caret.size.height);
+            let (view_top, view_bottom) = (view.origin.y, view.origin.y + view.size.height);
+            let shift = if top < view_top {
+                view_top - top
+            } else if bottom > view_bottom {
+                view_bottom - bottom
+            } else {
+                px(0.)
+            };
+            if shift != px(0.) && view.size.height > caret.size.height {
+                let mut offset = self.scroll.offset();
+                offset.y += shift;
+                self.scroll.set_offset(offset);
+                window.refresh();
+            }
+        }
         caret
     }
 
