@@ -21,7 +21,7 @@ The frame above is the real renderer, run offscreen: `cargo run -p editor-gpui -
 | `editor-gpui` | The view: state, drawing through the text seam, pointer, keyboard and platform text input. |
 | `xtask` | Repository checks. |
 
-The view crates need the component library's system dependencies to build; the headless crates do not. A playground arrives next; see `docs/status.md`.
+The view crates need the component library's system dependencies to build; the headless crates do not. See `docs/status.md` for where things stand.
 
 ## Use
 
@@ -52,7 +52,7 @@ other.import(&update)?;
 cargo run -p editor-gpui --example playground
 ```
 
-Opens the editor in a window. It needs the component library's system dependencies; on Linux those are the usual windowing, font and Vulkan development packages.
+Opens the editor in a window. `cargo run --release -p editor-gpui --example frames` times the editor's share of a frame on a document of 10,000 blocks. Both need the component library's system dependencies; on Linux those are the usual windowing, font and Vulkan development packages.
 
 ## Develop
 

@@ -5,7 +5,7 @@
 //! leaf's geometry while the blocks prepaint, registers the platform
 //! text input handler, and paints the caret.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::ops::Range;
 use std::rc::Rc;
@@ -14,17 +14,19 @@ use editor_model::BlockId;
 use ui::base::text::editor_host::{Caret, LeafGeometry, collect_leaf_geometry};
 use ui::{
     AnyElement, App, Bounds, Element, ElementId, ElementInputHandler, Entity, FocusHandle,
-    GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId, Pixels, ScrollHandle, Window,
-    fill, px, size,
+    GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId, ListOffset, ListState,
+    Pixels, Window, fill, px, size,
 };
 
+use crate::rows::Drawn;
 use crate::view::EditorView;
 
 /// How wide the caret is drawn.
 const CARET_WIDTH: Pixels = px(2.);
 
 /// What the last frame drew: each text leaf's geometry by key, and
-/// the keys in visual order with the blocks they stand for.
+/// the rows it asked for, in visual order, with the blocks they stand
+/// for. A row just outside the view is asked for but has no geometry.
 #[derive(Default)]
 pub struct Frame {
     pub leaves: HashMap<u64, LeafGeometry>,
@@ -33,19 +35,40 @@ pub struct Frame {
 
 pub type SharedFrame = Rc<RefCell<Frame>>;
 
+/// A row's height before it has been measured, in line heights.
+const ROW_ESTIMATE: f32 = 1.5;
+
+/// The selection's moving end, for this frame.
+#[derive(Clone, Copy)]
+pub struct Head {
+    /// Its leaf and byte offset.
+    pub key: u64,
+    pub offset: usize,
+    /// Its row, when this frame should bring it into view.
+    pub row: Option<usize>,
+    /// Whether the selection is a caret, which is drawn.
+    pub caret: bool,
+}
+
 pub struct Surface {
     pub child: Option<AnyElement>,
     pub decorations: HashMap<u64, Vec<(Range<usize>, Hsla)>>,
     pub frame: SharedFrame,
-    /// The caret's leaf and byte offset, when the selection is a caret.
-    pub caret: Option<(u64, usize)>,
+    /// The rows the list asks for while it lays out.
+    pub drawn: Drawn,
+    pub head: Option<Head>,
     pub caret_color: Hsla,
     pub focus: FocusHandle,
     pub view: Entity<EditorView>,
-    /// The scrolling container, and whether to bring the caret into
-    /// its view this frame.
-    pub scroll: ScrollHandle,
+    /// The list of rows.
+    pub list: ListState,
+    /// Whether to bring the head into view this frame, whether this
+    /// frame is already a second try at that, and where to ask for one.
     pub reveal: bool,
+    pub retry: bool,
+    pub again: Rc<Cell<bool>>,
+    /// The list width that row heights were last estimated for.
+    pub estimated: Rc<Cell<Pixels>>,
 }
 
 impl IntoElement for Surface {
@@ -96,31 +119,51 @@ impl Element for Surface {
                 child.prepaint(window, cx);
             }
         });
-        let caret = self.caret.and_then(|(key, offset)| {
-            let leaf = leaves.get(&key)?;
-            let at = leaf.position_for_caret(Caret::new(offset.min(leaf.len())));
+        let head = self.head.and_then(|head| {
+            let leaf = leaves.get(&head.key)?;
+            let at = leaf.position_for_caret(Caret::new(head.offset.min(leaf.len())));
             Some(Bounds::new(at, size(CARET_WIDTH, leaf.caret_height())))
         });
-        self.frame.borrow_mut().leaves = leaves;
-        if let (true, Some(caret)) = (self.reveal, caret) {
-            let view = self.scroll.bounds();
-            let (top, bottom) = (caret.origin.y, caret.origin.y + caret.size.height);
-            let (view_top, view_bottom) = (view.origin.y, view.origin.y + view.size.height);
-            let shift = if top < view_top {
-                view_top - top
-            } else if bottom > view_bottom {
-                view_bottom - bottom
-            } else {
-                px(0.)
-            };
-            if shift != px(0.) && view.size.height > caret.size.height {
-                let mut offset = self.scroll.offset();
-                offset.y += shift;
-                self.scroll.set_offset(offset);
+        {
+            let mut frame = self.frame.borrow_mut();
+            frame.leaves = leaves;
+            frame.order = self.drawn.borrow().values().copied().collect();
+        }
+        // The list forgets every height when its width changes. Rows
+        // it has not measured get an estimate, so the scrollbar spans
+        // the whole document from the first frame.
+        let view = self.list.viewport_bounds();
+        if self.estimated.get() != view.size.width {
+            self.estimated.set(view.size.width);
+            let estimate = window.line_height() * ROW_ESTIMATE;
+            let _ = self.list.clone().with_uniform_item_height(estimate);
+        }
+        match (self.reveal, head, self.head.and_then(|head| head.row)) {
+            (true, Some(head), _) => {
+                let (top, bottom) = (head.origin.y, head.origin.y + head.size.height);
+                let (view_top, view_bottom) = (view.origin.y, view.origin.y + view.size.height);
+                let down = if top < view_top {
+                    top - view_top
+                } else if bottom > view_bottom {
+                    bottom - view_bottom
+                } else {
+                    px(0.)
+                };
+                if down != px(0.) && view.size.height > head.size.height {
+                    self.list.scroll_by(down);
+                    window.refresh();
+                }
+            }
+            // The estimates put the head's row out of view: start the
+            // view at that row, which cannot miss, and line up again.
+            (true, None, Some(row)) if !self.retry => {
+                self.list.scroll_to(ListOffset { item_ix: row, offset_in_item: px(0.) });
+                self.again.set(true);
                 window.refresh();
             }
+            _ => {}
         }
-        caret
+        head.filter(|_| self.head.is_some_and(|head| head.caret))
     }
 
     fn paint(

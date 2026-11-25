@@ -137,7 +137,7 @@ impl EntityInputHandler for EditorView {
     ) -> Option<Bounds<Pixels>> {
         let (head, text) = self.head_text(cx)?;
         let frame = self.frame.borrow();
-        let leaf = frame.leaves.get(self.keys.get(&head.block)?)?;
+        let leaf = frame.leaves.get(&self.keys.borrow().get(head.block)?)?;
         let start = from_utf16(&text, range_utf16.start).min(leaf.len());
         Some(Bounds::new(leaf.position_for_index(start), size(px(1.), leaf.line_height())))
     }

@@ -334,6 +334,31 @@ impl EditorState {
     }
 
     /// Moves to the start or the end of the block's text.
+    /// Moves the head to the start of the next block with text, or
+    /// the end of the previous one. At the document's edge it moves to
+    /// the edge of the block it is in.
+    pub fn move_by_block(&mut self, down: bool, extend: bool, cx: &mut Context<Self>) {
+        let Some(head) = self.head() else { return };
+        let doc = self.snapshot();
+        let mut at = head.block;
+        let to = loop {
+            let next = if down { doc.next_in_order(at) } else { doc.prev_in_order(at) };
+            let Some(next) = next else {
+                let offset = if down { self.text_of(head.block).len() } else { 0 };
+                break Position::new(head.block, offset);
+            };
+            at = next;
+            if doc
+                .get(at)
+                .is_some_and(|block| !matches!(block.content, editor_model::Content::None))
+            {
+                let offset = if down { 0 } else { self.text_of(at).len() };
+                break Position::new(at, offset);
+            }
+        };
+        self.move_head(to, extend, cx);
+    }
+
     pub fn move_to_edge(&mut self, end: bool, extend: bool, cx: &mut Context<Self>) {
         let Some(head) = self.head() else { return };
         let offset = if end { self.text_of(head.block).len() } else { 0 };
