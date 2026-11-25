@@ -1,3 +1,6 @@
+// Copyright 2026 Anud Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use editor_model::{ATOM_CHAR, Block, BlockId, Content, Document, InlineText, PropValue, kinds};
 
 use crate::json::{block_to_json, prop_text};

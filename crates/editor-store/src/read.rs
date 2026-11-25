@@ -1,3 +1,6 @@
+// Copyright 2026 Anud Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Building a model snapshot from the replicated document.
 
 use std::collections::HashMap;

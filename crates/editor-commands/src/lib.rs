@@ -1,3 +1,6 @@
+// Copyright 2026 Anud Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Editing commands, input rules and normalization.
 //!
 //! Every command is a pure function from a snapshot and a selection to

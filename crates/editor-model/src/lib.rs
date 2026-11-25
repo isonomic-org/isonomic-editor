@@ -1,3 +1,6 @@
+// Copyright 2026 Anud Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! The document model: blocks, inline text, positions, selections,
 //! primitive operations and the schema registry.
 //!

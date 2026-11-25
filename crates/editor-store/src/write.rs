@@ -1,3 +1,6 @@
+// Copyright 2026 Anud Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Applying one primitive operation to the replicated document.
 
 use std::collections::HashMap;

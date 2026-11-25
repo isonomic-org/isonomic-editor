@@ -1,3 +1,6 @@
+// Copyright 2026 Anud Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use crate::{BlockId, ColumnId, RowId};
 
 /// Which side a position leans to when it sits on a wrap or run edge.

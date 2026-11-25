@@ -1,3 +1,6 @@
+// Copyright 2026 Anud Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use editor_model::{Block, Content, Document, InlineText, PropValue, kinds};
 
 fn escape(text: &str, out: &mut String) {

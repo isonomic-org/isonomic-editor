@@ -1,3 +1,6 @@
+// Copyright 2026 Anud Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! The replicated document.
 //!
 //! A [`Store`] owns one replicated document per page and keeps an

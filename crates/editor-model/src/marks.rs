@@ -1,3 +1,6 @@
+// Copyright 2026 Anud Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /// The kinds of inline formatting.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum MarkKind {

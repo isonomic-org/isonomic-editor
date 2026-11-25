@@ -1,3 +1,6 @@
+// Copyright 2026 Anud Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use editor_model::{ATOM_CHAR, Document};
 
 /// The document's text, one block per line, children indented.

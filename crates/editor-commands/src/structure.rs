@@ -1,3 +1,6 @@
+// Copyright 2026 Anud Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use editor_model::{
     BlockDraft, BlockId, BlockKind, Content, ContentKind, Document, IdSource, InlineText, Intent,
     Op, PropValue, Props, Selection, Transaction, kinds,

@@ -4,6 +4,7 @@ description = "The document model: blocks, inline text, positions, selections, o
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 serde.workspace = true

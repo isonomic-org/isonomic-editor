@@ -1,3 +1,6 @@
+// Copyright 2026 Anud Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /// Bounds enforced on every document, whatever its source.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Limits {
