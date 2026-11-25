@@ -365,3 +365,46 @@ fn the_insert_menu_stays_inside_the_window(cx: &mut TestAppContext) {
         "with no room below, it opens above the caret: {bounds:?}"
     );
 }
+
+#[ui::test]
+fn an_empty_paragraph_with_the_caret_shows_a_hint(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, "");
+    let id = blocks(&view, cx)[0];
+    let caret = |view: &Entity<EditorView>, cx: &mut VisualTestContext, at| {
+        view.read_with(cx, |view, _| view.caret_point(at)).unwrap()
+    };
+    // How wide the text drawn in a block is: from its start to the end
+    // of whatever the leaf holds.
+    let width = |view: &Entity<EditorView>, cx: &mut VisualTestContext, id| {
+        let points = view.read_with(cx, |view, _| {
+            (view.caret_point(Position::new(id, 0)), view.caret_point(Position::new(id, 999)))
+        });
+        points.1.unwrap().x - points.0.unwrap().x
+    };
+    // The hint is drawn, and it is not in the document.
+    let left = caret(&view, cx, Position::new(id, 0)).x;
+    assert!(width(&view, cx, id) > px(40.), "the hint is drawn");
+    assert_eq!(markdown(&view, cx), "\n", "the document is still empty");
+    assert_eq!(selection(&view, cx), Selection::caret(id, 0));
+
+    // A click in the middle of the hint leaves the caret at the start,
+    // and End has nowhere to go.
+    let bounds = view.read_with(cx, |view, _| view.leaf_bounds(id)).unwrap();
+    cx.simulate_click(bounds.origin + point(px(60.), px(8.)), Modifiers::none());
+    settle(cx);
+    keys(cx, "end shift-right");
+    assert_eq!(selection(&view, cx), Selection::caret(id, 0));
+    assert_eq!(caret(&view, cx, Position::new(id, 0)).x, left);
+
+    // Typing replaces it; a second, empty paragraph without the caret shows nothing.
+    type_text(cx, "a");
+    assert_eq!(markdown(&view, cx), "a\n");
+    keys(cx, "enter up");
+    let second = blocks(&view, cx)[1];
+    let without = width(&view, cx, second);
+    keys(cx, "down");
+    settle(cx);
+    let with = width(&view, cx, second);
+    assert!(with > without + px(40.), "the hint only with the caret: {without:?} then {with:?}");
+    assert_eq!(markdown(&view, cx), "a\n");
+}

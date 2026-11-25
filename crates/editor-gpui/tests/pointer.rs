@@ -69,6 +69,9 @@ fn keys_move_by_word_and_to_the_document_edges(cx: &mut TestAppContext) {
     assert_eq!(selection(&view, cx), Selection::range(ids[1], 0, 5));
     keys(cx, "document-end");
     assert_eq!(selection(&view, cx), Selection::caret(ids[1], 11));
+    keys(cx, "word-backspace");
+    assert!(!markdown(&view, cx).contains("delta"), "the word key removes a word");
+    keys(cx, "secondary-z");
     keys(cx, "document-start");
     assert_eq!(selection(&view, cx), Selection::caret(ids[0], 0));
 }
@@ -138,4 +141,18 @@ fn the_caret_blinks_and_any_change_shows_it_again(cx: &mut TestAppContext) {
     assert!(!shown(&view, cx));
     keys(cx, "right");
     assert!(shown(&view, cx), "moving the caret shows it at once");
+}
+
+#[ui::test]
+fn a_click_past_the_end_of_a_line_lands_at_its_end(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, "plain text\n\n1. numbered\n\n> quoted\n\n# Title\n");
+    let ids = blocks(&view, cx);
+    for (index, length) in [(0, 10), (1, 8), (2, 6), (3, 5)] {
+        let end = caret(&view, cx, Position::new(ids[index], length));
+        press(cx, end + point(px(200.), px(6.)), 1);
+        assert_eq!(selection(&view, cx), Selection::caret(ids[index], length), "block {index}");
+        let start = caret(&view, cx, Position::new(ids[index], 0));
+        press(cx, point(px(1.), start.y + px(6.)), 1);
+        assert_eq!(selection(&view, cx), Selection::caret(ids[index], 0), "block {index}");
+    }
 }

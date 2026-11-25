@@ -97,6 +97,8 @@ pub(crate) fn bind_keys(cx: &mut App) {
         KeyBinding::new("alt-backspace", BackspaceWord, context),
         KeyBinding::new("delete", Delete, context),
         KeyBinding::new("alt-delete", DeleteWord, context),
+        KeyBinding::new(by_word!("backspace"), BackspaceWord, context),
+        KeyBinding::new(by_word!("delete"), DeleteWord, context),
         KeyBinding::new("enter", Newline, context),
         KeyBinding::new("escape", Cancel, context),
         KeyBinding::new("tab", Indent, context),
