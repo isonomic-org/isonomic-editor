@@ -18,7 +18,7 @@ mod text;
 pub use build::block_ranges as selection_ranges;
 pub use marks::{set_link, toggle_mark};
 pub use normalize::normalize;
-pub use paste::{insert_block, insert_fragment};
+pub use paste::{copy_fragment, insert_block, insert_fragment};
 pub use rules::input_rule;
 pub use structure::{
     convert_block, indent, move_down, move_up, outdent, select_all, split_block, toggle_todo,

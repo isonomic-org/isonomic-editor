@@ -4,6 +4,10 @@ The block editor engine for Isonomic apps: a document model, a replicated store,
 
 A document is a tree of blocks. Each block has a stable ID, a type, properties, and rich text made of UTF-8 text plus mark ranges. Every edit is a transaction of nine primitive operations, so undo, sync, agents and the view all share one path.
 
+![The editor drawing a sample document, with a selection](docs/images/editor.png)
+
+The frame above is the real renderer, run offscreen: `cargo run -p editor-gpui --example screenshot -- editor.png`.
+
 ## Layout
 
 | Crate | Role |
@@ -41,6 +45,14 @@ if let Some(tx) = cmd::insert_text(&doc, &selection, "Hello", None) {
 let update = store.export_since(&their_version)?;
 other.import(&update)?;
 ```
+
+## Try it
+
+```sh
+cargo run -p editor-gpui --example playground
+```
+
+Opens the editor in a window. It needs the component library's system dependencies; on Linux those are the usual windowing, font and Vulkan development packages.
 
 ## Develop
 

@@ -267,6 +267,33 @@ impl EditorState {
         }
     }
 
+    /// The selection as Markdown, for the clipboard.
+    pub fn copy(&self) -> Option<String> {
+        let fragment = cmd::copy_fragment(&self.snapshot(), &self.selection)?;
+        Some(editor_formats::to_markdown(&fragment))
+    }
+
+    /// Copies the selection and removes it.
+    pub fn cut(&mut self, cx: &mut Context<Self>) -> Option<String> {
+        let copied = self.copy()?;
+        let doc = self.snapshot();
+        self.run(cmd::delete_selection(&doc, &self.selection), cx);
+        Some(copied)
+    }
+
+    /// Pastes Markdown at the selection: one line goes in as text,
+    /// anything more as blocks.
+    pub fn paste(&mut self, markdown: &str, cx: &mut Context<Self>) {
+        let doc = self.snapshot();
+        if markdown.len() > doc.limits().paste_bytes {
+            return;
+        }
+        let fragment =
+            editor_formats::from_markdown(markdown, doc.registry().clone(), self.store.ids());
+        let tx = cmd::insert_fragment(&doc, &self.selection, &fragment, self.store.ids());
+        self.run(tx, cx);
+    }
+
     /// The nearest block with text before or after `id` in document
     /// order.
     fn neighbour(doc: &Document, id: BlockId, forward: bool) -> Option<BlockId> {

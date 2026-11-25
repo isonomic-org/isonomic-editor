@@ -13,12 +13,12 @@ Tested in a headless window with real layout and real key dispatch: a document t
 
 **Not yet, and known rough edges.**
 
-1. It has never been opened on a screen. Headless tests check layout and behavior, not pixels. A playground and screenshots are next.
+1. It has been rendered offscreen with the real renderer on Linux (software Vulkan); the frames are in `docs/images/`, made by the `screenshot` example. The `playground` example opens it in a window; it was run on Linux under a virtual display with software rendering and driven with real pointer and key events (click, type, shortcuts, wheel). It has not been run on macOS, and nobody has used it by hand yet.
 2. Every block is rendered every frame; flat-row virtualization is milestone 2.
 3. No scrolling container, so the caret is not scrolled into view.
 4. An empty text block draws a zero-width space so it has a line for the caret. Inline atoms draw as a placeholder character.
 5. A composition is not yet one undo step. The caret does not blink.
-6. No clipboard, slash menu, block handles, toolbar or drag and drop.
+6. Copy, cut and paste work and carry Markdown; there is no typed clipboard payload yet. No slash menu, block handles, toolbar or drag and drop.
 7. Home and End move to the block's edges, not the visual line's.
 
 ## 2026-11-25: undo, redo and import refresh only what changed

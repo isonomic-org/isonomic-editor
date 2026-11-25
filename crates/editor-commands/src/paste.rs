@@ -118,3 +118,44 @@ pub fn insert_block(
         intent: Intent::Command,
     })
 }
+
+/// What the selection holds, as a document of its own: the selected
+/// blocks, with the first and last cut down to the selected text.
+/// Blocks keep their nesting where their parent is selected too.
+pub fn copy_fragment(doc: &Document, selection: &Selection) -> Option<Document> {
+    let ranges: Vec<(BlockId, std::ops::Range<usize>)> = match selection {
+        Selection::Text { .. } => crate::build::block_ranges(doc, selection),
+        Selection::Blocks(blocks) => blocks
+            .iter()
+            .flat_map(|id| doc.subtree(*id))
+            .map(|id| (id, 0..doc.get(id).map_or(0, |block| block.content.len())))
+            .collect(),
+        Selection::Cells { .. } => Vec::new(),
+    };
+    if ranges.iter().all(|(_, range)| range.is_empty())
+        && !matches!(selection, Selection::Blocks(_))
+    {
+        return None;
+    }
+    let mut out = Document::with_limits(doc.registry().clone(), doc.limits().clone());
+    let whole_blocks = ranges.len() > 1 || matches!(selection, Selection::Blocks(_));
+    for (id, range) in ranges {
+        let block = doc.get(id)?;
+        let text = block.content.to_inline();
+        let whole = range.start == 0 && range.end == text.len();
+        // Part of one block is just text; it does not carry the
+        // block's type along.
+        let plain = !whole_blocks && !whole;
+        let draft = BlockDraft {
+            id,
+            kind: if plain { BlockKind::new(kinds::PARAGRAPH) } else { block.kind.clone() },
+            props: if plain { Props::new() } else { block.props.clone() },
+            tunes: if plain { Props::new() } else { block.tunes.clone() },
+            text: text.slice(range),
+        };
+        let parent = doc.parent(id).filter(|parent| out.contains(*parent));
+        let index = out.children(parent).len();
+        out.apply(&Op::InsertBlock { parent, index, block: draft }).ok()?;
+    }
+    (!out.is_empty()).then_some(out)
+}
