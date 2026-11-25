@@ -56,6 +56,8 @@ cargo run -p editor-gpui --example playground
 
 Opens the editor in a window. `cargo run --release -p editor-gpui --example frames` times the editor's share of a frame on a document of 10,000 blocks. Both need the component library's system dependencies; on Linux those are the usual windowing, font and Vulkan development packages.
 
+Keys, typing shortcuts and pointer gestures are listed in `docs/keys.md`.
+
 ## Develop
 
 ```sh
