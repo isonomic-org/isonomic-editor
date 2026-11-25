@@ -9,27 +9,29 @@ use editor_model::{BlockId, Document, MarkKind, Position, Selection, kinds};
 use ui::base::text::editor_host::{BlockNode, Caret, FlowPosition, RenderContext};
 use ui::component::ActiveTheme as _;
 use ui::{
-    AnyElement, App, Bounds, ClipboardItem, Context, Entity, EntityInputHandler, FocusHandle,
-    Focusable, Hsla, InteractiveElement as _, IntoElement, MouseButton, MouseDownEvent,
-    MouseMoveEvent, ParentElement as _, Pixels, Point, Render, Styled as _, Subscription,
-    UTF16Selection, Window, div, point, px, size,
+    AnyElement, App, Bounds, ClipboardItem, Context, Entity, FocusHandle, Focusable, Hsla,
+    InteractiveElement as _, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent,
+    ParentElement as _, Pixels, Point, Render, ScrollHandle, StatefulInteractiveElement as _,
+    Styled as _, Subscription, Window, div, point, px,
 };
 
 use crate::actions::*;
 use crate::nodes::node_for;
 use crate::state::EditorState;
 use crate::surface::{SharedFrame, Surface};
-use crate::units::{from_utf16, to_utf16};
 
 /// Draws an [`EditorState`] and routes input to it.
 pub struct EditorView {
-    state: Entity<EditorState>,
-    focus: FocusHandle,
-    frame: SharedFrame,
+    pub(crate) state: Entity<EditorState>,
+    pub(crate) focus: FocusHandle,
+    pub(crate) frame: SharedFrame,
     /// A stable number per block: its leaf key and its element ID.
-    keys: HashMap<BlockId, u64>,
+    pub(crate) keys: HashMap<BlockId, u64>,
     next_key: u64,
     dragging: bool,
+    scroll: ScrollHandle,
+    /// The head as of the last frame; a change scrolls it into view.
+    last_head: Option<Position>,
     _observe: Subscription,
 }
 
@@ -43,6 +45,8 @@ impl EditorView {
             keys: HashMap::new(),
             next_key: 1,
             dragging: false,
+            scroll: ScrollHandle::new(),
+            last_head: None,
             _observe: observe,
         }
     }
@@ -194,45 +198,6 @@ impl EditorView {
         }
         out
     }
-
-    /// Replaces a range of the head's block (or the text being
-    /// composed, or the selection) and returns where the new text
-    /// starts.
-    fn replace(
-        &mut self,
-        range_utf16: Option<Range<usize>>,
-        text: &str,
-        cx: &mut Context<Self>,
-    ) -> Option<(BlockId, usize)> {
-        self.state.update(cx, |state, cx| {
-            let head = state.head()?;
-            let current = state.text_of(head.block);
-            let range = range_utf16
-                .map(|range| from_utf16(&current, range.start)..from_utf16(&current, range.end))
-                .or_else(|| {
-                    state
-                        .composing()
-                        .filter(|(block, _)| *block == head.block)
-                        .map(|(_, r)| r.clone())
-                });
-            if let Some(range) = range {
-                state.select(Selection::range(head.block, range.start, range.end), cx);
-            }
-            if !text.is_empty() {
-                state.insert_text(text, cx);
-            } else if !state.selection().is_caret() {
-                state.backspace(false, cx);
-            }
-            let caret = state.head()?;
-            Some((caret.block, caret.offset.saturating_sub(text.len())))
-        })
-    }
-
-    fn head_text(&self, cx: &App) -> Option<(Position, String)> {
-        let state = self.state.read(cx);
-        let head = state.head()?;
-        Some((head, state.text_of(head.block)))
-    }
 }
 
 impl Focusable for EditorView {
@@ -289,6 +254,9 @@ impl Render for EditorView {
             }
             _ => None,
         };
+        let head = selection.head();
+        let reveal = head != self.last_head;
+        self.last_head = head;
         let decorations = self.decorations(&doc, &selection, selection_color);
         self.frame.borrow_mut().order = order;
         let surface = Surface {
@@ -299,12 +267,16 @@ impl Render for EditorView {
             caret_color,
             focus: self.focus.clone(),
             view: cx.entity(),
+            scroll: self.scroll.clone(),
+            reveal,
         };
         div()
             .id("isonomic-editor")
             .key_context(CONTEXT)
             .track_focus(&self.focus)
             .size_full()
+            .overflow_y_scroll()
+            .track_scroll(&self.scroll)
             .on_action(cx.listener(|this, _: &Backspace, _, cx| {
                 this.edit(cx, |s, cx| s.backspace(false, cx))
             }))
@@ -407,105 +379,5 @@ impl EditorView {
         run: impl FnOnce(&mut EditorState, &mut Context<EditorState>),
     ) {
         self.state.update(cx, run);
-    }
-}
-
-/// Platform text input. Ranges count UTF-16 units within the text of
-/// the block that holds the caret.
-impl EntityInputHandler for EditorView {
-    fn text_for_range(
-        &mut self,
-        range: Range<usize>,
-        _: &mut Option<Range<usize>>,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Option<String> {
-        let (_, text) = self.head_text(cx)?;
-        text.get(from_utf16(&text, range.start)..from_utf16(&text, range.end)).map(str::to_owned)
-    }
-
-    fn selected_text_range(
-        &mut self,
-        _: bool,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Option<UTF16Selection> {
-        let (head, text) = self.head_text(cx)?;
-        let anchor = match self.state.read(cx).selection() {
-            Selection::Text { anchor, .. } if anchor.block == head.block => anchor.offset,
-            _ => head.offset,
-        };
-        let (start, end) = (anchor.min(head.offset), anchor.max(head.offset));
-        Some(UTF16Selection {
-            range: to_utf16(&text, start)..to_utf16(&text, end),
-            reversed: head.offset < anchor,
-        })
-    }
-
-    fn marked_text_range(&self, _: &mut Window, cx: &mut Context<Self>) -> Option<Range<usize>> {
-        let (head, text) = self.head_text(cx)?;
-        let state = self.state.read(cx);
-        let (_, range) = state.composing().filter(|(block, _)| *block == head.block)?;
-        Some(to_utf16(&text, range.start)..to_utf16(&text, range.end))
-    }
-
-    fn unmark_text(&mut self, _: &mut Window, cx: &mut Context<Self>) {
-        self.state.update(cx, |state, _| state.set_composing(None));
-    }
-
-    fn replace_text_in_range(
-        &mut self,
-        range: Option<Range<usize>>,
-        text: &str,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.replace(range, text, cx);
-        self.state.update(cx, |state, _| state.set_composing(None));
-    }
-
-    fn replace_and_mark_text_in_range(
-        &mut self,
-        range: Option<Range<usize>>,
-        new_text: &str,
-        new_selected_range: Option<Range<usize>>,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let Some((block, start)) = self.replace(range, new_text, cx) else { return };
-        self.state.update(cx, |state, cx| {
-            let composing = (!new_text.is_empty()).then(|| (block, start..start + new_text.len()));
-            state.set_composing(composing);
-            if let Some(selected) = new_selected_range {
-                let from = start + from_utf16(new_text, selected.start);
-                let to = start + from_utf16(new_text, selected.end);
-                state.select(Selection::range(block, from, to), cx);
-            }
-        });
-    }
-
-    fn bounds_for_range(
-        &mut self,
-        range_utf16: Range<usize>,
-        _: Bounds<Pixels>,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Option<Bounds<Pixels>> {
-        let (head, text) = self.head_text(cx)?;
-        let frame = self.frame.borrow();
-        let leaf = frame.leaves.get(self.keys.get(&head.block)?)?;
-        let start = from_utf16(&text, range_utf16.start).min(leaf.len());
-        Some(Bounds::new(leaf.position_for_index(start), size(px(1.), leaf.line_height())))
-    }
-
-    fn character_index_for_point(
-        &mut self,
-        at: Point<Pixels>,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Option<usize> {
-        let (head, text) = self.head_text(cx)?;
-        let hit = self.position_at(at, cx)?;
-        (hit.block == head.block).then(|| to_utf16(&text, hit.offset))
     }
 }

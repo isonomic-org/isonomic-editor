@@ -209,3 +209,32 @@ fn copy_cut_and_paste_carry_formatting(cx: &mut TestAppContext) {
         "one **two** three\n\n- item\n  - nested\n\nlast\n\n- item\n  - nested\n"
     );
 }
+
+#[ui::test]
+fn the_caret_is_scrolled_into_view(cx: &mut TestAppContext) {
+    let long: String = (0..400).map(|n| format!("paragraph {n}\n\n")).collect();
+    let (view, cx) = open(cx, &long);
+    let ids = blocks(&view, cx);
+    let height = cx.update(|window, _| window.viewport_size().height);
+    let caret_y = |view: &Entity<EditorView>, cx: &mut VisualTestContext, block: usize| {
+        view.read_with(cx, |view, _| view.caret_point(Position::new(ids[block], 0))).unwrap().y
+    };
+    assert!(caret_y(&view, cx, 399) > height, "the last block starts far below the window");
+    view.update(cx, |view, cx| {
+        view.state().update(cx, |state, cx| state.select(Selection::caret(ids[399], 0), cx));
+    });
+    settle(cx);
+    settle(cx);
+    let y = caret_y(&view, cx, 399);
+    assert!(y > px(0.) && y < height, "the caret is inside the window, at {y:?}");
+    keys(cx, "end enter");
+    type_text(cx, "typed at the end");
+    assert!(markdown(&view, cx).ends_with("typed at the end\n"));
+    view.update(cx, |view, cx| {
+        view.state().update(cx, |state, cx| state.select(Selection::caret(ids[0], 0), cx));
+    });
+    settle(cx);
+    settle(cx);
+    let y = caret_y(&view, cx, 0);
+    assert!(y >= px(0.) && y < height, "and back at the top, at {y:?}");
+}
