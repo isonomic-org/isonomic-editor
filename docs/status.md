@@ -18,7 +18,7 @@ Tested in a headless window with real layout and real key dispatch: a document t
 3. No scrolling container, so the caret is not scrolled into view.
 4. An empty text block draws a zero-width space so it has a line for the caret. Inline atoms draw as a placeholder character.
 5. A composition is not yet one undo step. The caret does not blink.
-6. No clipboard, slash menu, block handles, toolbar or drag and drop.
+6. Copy, cut and paste work and carry Markdown; there is no typed clipboard payload yet. No slash menu, block handles, toolbar or drag and drop.
 7. Home and End move to the block's edges, not the visual line's.
 
 ## 2026-11-25: undo, redo and import refresh only what changed
