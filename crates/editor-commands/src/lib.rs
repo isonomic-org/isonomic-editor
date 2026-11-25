@@ -15,6 +15,7 @@ mod rules;
 mod structure;
 mod text;
 
+pub use build::block_ranges as selection_ranges;
 pub use marks::{set_link, toggle_mark};
 pub use normalize::normalize;
 pub use paste::{insert_block, insert_fragment};

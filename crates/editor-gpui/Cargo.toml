@@ -1,0 +1,21 @@
+[package]
+name = "editor-gpui"
+description = "The editor view: state, drawing through the text seam, input and selection."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+editor-model.workspace = true
+editor-store.workspace = true
+editor-commands.workspace = true
+editor-formats.workspace = true
+editor-blocks.workspace = true
+ui = { path = "../ui" }
+
+[dev-dependencies]
+ui = { path = "../ui", features = ["test-support"] }
+
+[lints]
+workspace = true

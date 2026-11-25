@@ -13,9 +13,11 @@ A document is a tree of blocks. Each block has a stable ID, a type, properties, 
 | `editor-commands` | Editing commands, input rules and normalization, as pure functions. |
 | `editor-formats` | Canonical JSON (`isonomic.doc/1`), Markdown, HTML and plain text. |
 | `editor-blocks` | Specs for the standard blocks and the insert menu. |
+| `ui` | The component library, re-exported at one pinned revision. |
+| `editor-gpui` | The view: state, drawing through the text seam, pointer, keyboard and platform text input. |
 | `xtask` | Repository checks. |
 
-The view crate (`editor-gpui`), the `ui` re-export and the playground arrive with milestone 1; see `docs/status.md`.
+The view crates need the component library's system dependencies to build; the headless crates do not. A playground arrives next; see `docs/status.md`.
 
 ## Use
 
@@ -44,6 +46,7 @@ other.import(&update)?;
 
 ```sh
 cargo test            # headless crates; no GPU needed
+cargo test --workspace  # adds the view crate, in a headless window
 cargo clippy --all-targets -- -D warnings
 cargo xtask deps      # headless crates stay headless
 cargo xtask sizes     # every file under 20 KB
