@@ -1,12 +1,14 @@
 # Isonomic Editor
 
-The block editor engine for Isonomic apps: a document model, a replicated store, editing commands, formats, the standard blocks, and (next) the editor view.
+The block editor engine for Isonomic apps: a document model, a replicated store, editing commands, formats, the standard blocks, and the editor view.
 
 A document is a tree of blocks. Each block has a stable ID, a type, properties, and rich text made of UTF-8 text plus mark ranges. Every edit is a transaction of nine primitive operations, so undo, sync, agents and the view all share one path.
 
 ![The editor drawing a sample document, with a selection](docs/images/editor.png)
 
-The frame above is the real renderer, run offscreen: `cargo run -p editor-gpui --example screenshot -- editor.png`.
+![The insert menu open under the caret](docs/images/editor-menu.png)
+
+The frames above are the real renderer, run offscreen: `cargo run -p editor-gpui --example screenshot -- editor.png` and `... -- editor-menu.png menu`.
 
 ## Layout
 
@@ -18,7 +20,7 @@ The frame above is the real renderer, run offscreen: `cargo run -p editor-gpui -
 | `editor-formats` | Canonical JSON (`isonomic.doc/1`), Markdown, HTML and plain text. |
 | `editor-blocks` | Specs for the standard blocks and the insert menu. |
 | `ui` | The component library, re-exported at one pinned revision. |
-| `editor-gpui` | The view: state, drawing through the text seam, pointer, keyboard and platform text input. |
+| `editor-gpui` | The view: state, the rows in view drawn through the text seam, pointer, keyboard, platform text input, the insert menu. |
 | `xtask` | Repository checks. |
 
 The view crates need the component library's system dependencies to build; the headless crates do not. See `docs/status.md` for where things stand.

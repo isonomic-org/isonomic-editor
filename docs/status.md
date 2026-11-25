@@ -2,6 +2,12 @@
 
 Newest first.
 
+## 2026-11-25: the insert menu
+
+- Typing `/` at the start of a block of text or after white space opens a menu of block types under the caret. What is typed next filters it (title starts, then keyword starts, then anywhere in the title); Up and Down step through and wrap; Enter or a click applies the choice; Escape, moving the caret away, deleting the trigger or typing past any match closes it.
+- Choosing removes the trigger and the query and converts the block, as one undo step. A divider takes the block's place when the block is otherwise empty and goes in after it when it is not.
+- The rules are headless in `editor-commands` (`menu_trigger`, `menu_query`, `choose_menu_entry`) and tested there; the view only draws the list. `docs/images/editor-menu.png` is a rendered frame.
+
 ## 2026-11-25: only the rows in view are drawn
 
 - The view lists every block in document order in the toolkit's list and builds elements only for the rows the list is about to show. Rows not yet measured get an estimated height, so the scrollbar spans the whole document from the first frame. The standard scrollbar sits over the rows.
@@ -35,7 +41,7 @@ Tested in a headless window with real layout and real key dispatch: a document t
 3. The view scrolls, and brings the selection's head into view when it moves. It does not yet scroll while a drag selects past the edge. Up or Down into a block that is not drawn lands at that block's edge, not under the column the caret was in.
 4. An empty text block draws a zero-width space so it has a line for the caret. Inline atoms draw as a placeholder character.
 5. A composition is not yet one undo step. The caret does not blink.
-6. Copy, cut and paste work and carry Markdown; there is no typed clipboard payload yet. No slash menu, block handles, toolbar or drag and drop.
+6. Copy, cut and paste work and carry Markdown; there is no typed clipboard payload yet. The insert menu works; it is not grouped and does not scroll, which a longer list of block types will need. No block handles, toolbar or drag and drop.
 7. Home and End move to the edges of the visual line. At a wrapped line's end the caret rests one character short of the wrap.
 
 ## 2026-11-25: undo, redo and import refresh only what changed

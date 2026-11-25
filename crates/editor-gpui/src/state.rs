@@ -13,6 +13,8 @@ use editor_model::{
 use editor_store::Store;
 use ui::{Context, EventEmitter};
 
+use crate::menu::InsertMenu;
+
 /// What an [`EditorState`] tells its observers.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EditorEvent {
@@ -25,11 +27,12 @@ pub enum EditorEvent {
 /// One document being edited: its store, its selection and the marks
 /// waiting for the next typed character.
 pub struct EditorState {
-    store: Store,
-    selection: Selection,
+    pub(crate) store: Store,
+    pub(crate) selection: Selection,
     pending: Option<Marks>,
     /// Text the platform is still composing: block and byte range.
     composing: Option<(BlockId, Range<usize>)>,
+    pub(crate) menu: Option<InsertMenu>,
 }
 
 impl EventEmitter<EditorEvent> for EditorState {}
@@ -64,6 +67,7 @@ impl EditorState {
             selection: Selection::Blocks(Vec::new()),
             pending: None,
             composing: None,
+            menu: None,
         };
         state.settle();
         state
@@ -144,6 +148,7 @@ impl EditorState {
     }
 
     fn edited(&mut self, cx: &mut Context<Self>) {
+        self.follow_menu();
         cx.emit(EditorEvent::Edited);
         cx.notify();
     }
@@ -154,6 +159,7 @@ impl EditorState {
             self.selection = selection;
             self.settle();
             self.pending = None;
+            self.follow_menu();
             cx.emit(EditorEvent::SelectionChanged);
             cx.notify();
         }
@@ -170,7 +176,7 @@ impl EditorState {
     }
 
     /// Applies a command's transaction. `false` when it did not apply.
-    fn run(&mut self, tx: Option<Transaction>, cx: &mut Context<Self>) -> bool {
+    pub(crate) fn run(&mut self, tx: Option<Transaction>, cx: &mut Context<Self>) -> bool {
         let Some(tx) = tx else { return false };
         if self.store.apply(&tx, Some(&self.selection)).is_err() {
             return false;
@@ -193,6 +199,7 @@ impl EditorState {
         let doc = self.snapshot();
         let rule = cmd::input_rule(&doc, &self.selection, self.store.ids());
         self.run(rule, cx);
+        self.open_menu_if_triggered(text, cx);
     }
 
     pub fn backspace(&mut self, word: bool, cx: &mut Context<Self>) {

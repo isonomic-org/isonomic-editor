@@ -9,6 +9,7 @@
 
 mod build;
 mod marks;
+mod menu;
 mod normalize;
 mod paste;
 mod rules;
@@ -17,6 +18,7 @@ mod text;
 
 pub use build::block_ranges as selection_ranges;
 pub use marks::{set_link, toggle_mark};
+pub use menu::{MENU_TRIGGER, choose_menu_entry, menu_query, menu_trigger};
 pub use normalize::normalize;
 pub use paste::{copy_fragment, insert_block, insert_fragment};
 pub use rules::input_rule;
