@@ -58,7 +58,7 @@ Accessibility in this framework is carried by elements: role, name and state. Ea
 
 ## B16. Performance budgets
 
-Budgets are for the Intel test Mac, release build. The "measured" column is the store alone on a 2-core 2.1 GHz Linux machine; it shows how much of each budget the store uses, not that the budget is met.
+Budgets are for the Intel test Mac, release build. The "measured" column is the store alone on a 2-core 2.1 GHz Linux machine; it shows how much of each budget the store uses, not that the budget is met. Two rows have now been measured whole on the Intel Mac, for the editor's share before the renderer (`docs/status.md`): typing is 2.9 ms a frame at 10,000 blocks, inside its budget; opening 10,000 blocks to the first frame is 0.77 s on the main thread, **which does not meet its budget**.
 
 | Measure | Budget | Store alone, measured |
 |---|---|---|
