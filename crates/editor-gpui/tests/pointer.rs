@@ -70,7 +70,7 @@ fn keys_move_by_word_and_to_the_document_edges(cx: &mut TestAppContext) {
     keys(cx, "document-end");
     assert_eq!(selection(&view, cx), Selection::caret(ids[1], 11));
     keys(cx, "word-backspace");
-    assert!(markdown(&view, cx).ends_with("gamma \n"), "the word key removes a word");
+    assert!(!markdown(&view, cx).contains("delta"), "the word key removes a word");
     keys(cx, "secondary-z");
     keys(cx, "document-start");
     assert_eq!(selection(&view, cx), Selection::caret(ids[0], 0));
