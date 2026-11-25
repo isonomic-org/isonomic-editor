@@ -13,7 +13,7 @@ Tested in a headless window with real layout and real key dispatch: a document t
 
 **Not yet, and known rough edges.**
 
-1. It has never been opened on a screen. Headless tests check layout and behavior, not pixels. A playground and screenshots are next.
+1. It has been rendered offscreen with the real renderer on Linux (software Vulkan); the frames are in `docs/images/`, made by the `screenshot` example. It has not been run interactively, and not on macOS. A playground is next.
 2. Every block is rendered every frame; flat-row virtualization is milestone 2.
 3. No scrolling container, so the caret is not scrolled into view.
 4. An empty text block draws a zero-width space so it has a line for the caret. Inline atoms draw as a placeholder character.

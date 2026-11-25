@@ -4,6 +4,10 @@ The block editor engine for Isonomic apps: a document model, a replicated store,
 
 A document is a tree of blocks. Each block has a stable ID, a type, properties, and rich text made of UTF-8 text plus mark ranges. Every edit is a transaction of nine primitive operations, so undo, sync, agents and the view all share one path.
 
+![The editor drawing a sample document, with a selection](docs/images/editor.png)
+
+The frame above is the real renderer, run offscreen: `cargo run -p editor-gpui --example screenshot -- editor.png`.
+
 ## Layout
 
 | Crate | Role |
