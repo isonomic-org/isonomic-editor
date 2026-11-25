@@ -32,6 +32,14 @@ ui::actions!(
         SelectToEnd,
         SelectAll,
         Cancel,
+        MoveWordLeft,
+        MoveWordRight,
+        SelectWordLeft,
+        SelectWordRight,
+        MoveToDocumentStart,
+        MoveToDocumentEnd,
+        SelectToDocumentStart,
+        SelectToDocumentEnd,
         ToggleBold,
         ToggleItalic,
         ToggleUnderline,
@@ -59,6 +67,29 @@ macro_rules! secondary {
     };
 }
 
+/// The key that moves by a word with an arrow: Option on macOS,
+/// Control elsewhere.
+#[cfg(target_os = "macos")]
+macro_rules! by_word {
+    ($key:literal) => {
+        concat!("alt-", $key)
+    };
+}
+
+#[cfg(not(target_os = "macos"))]
+macro_rules! by_word {
+    ($key:literal) => {
+        concat!("ctrl-", $key)
+    };
+}
+
+/// The keys for the start and end of the document: Command with Up and
+/// Down on macOS, Control with Home and End elsewhere.
+#[cfg(target_os = "macos")]
+const DOCUMENT_EDGES: [&str; 4] = ["cmd-up", "cmd-down", "cmd-shift-up", "cmd-shift-down"];
+#[cfg(not(target_os = "macos"))]
+const DOCUMENT_EDGES: [&str; 4] = ["ctrl-home", "ctrl-end", "ctrl-shift-home", "ctrl-shift-end"];
+
 pub(crate) fn bind_keys(cx: &mut App) {
     let context = Some(CONTEXT);
     cx.bind_keys([
@@ -84,6 +115,14 @@ pub(crate) fn bind_keys(cx: &mut App) {
         KeyBinding::new("shift-down", SelectDown, context),
         KeyBinding::new("shift-home", SelectToStart, context),
         KeyBinding::new("shift-end", SelectToEnd, context),
+        KeyBinding::new(by_word!("left"), MoveWordLeft, context),
+        KeyBinding::new(by_word!("right"), MoveWordRight, context),
+        KeyBinding::new(by_word!("shift-left"), SelectWordLeft, context),
+        KeyBinding::new(by_word!("shift-right"), SelectWordRight, context),
+        KeyBinding::new(DOCUMENT_EDGES[0], MoveToDocumentStart, context),
+        KeyBinding::new(DOCUMENT_EDGES[1], MoveToDocumentEnd, context),
+        KeyBinding::new(DOCUMENT_EDGES[2], SelectToDocumentStart, context),
+        KeyBinding::new(DOCUMENT_EDGES[3], SelectToDocumentEnd, context),
         KeyBinding::new(secondary!("a"), SelectAll, context),
         KeyBinding::new(secondary!("b"), ToggleBold, context),
         KeyBinding::new(secondary!("i"), ToggleItalic, context),

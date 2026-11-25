@@ -2,68 +2,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! The view in a headless window: real layout, real key bindings and
-//! the real text input path, with no screen.
+//! real pointer events, with no screen.
 
 extern crate ui as gpui;
 
-use editor_gpui::{EditorState, EditorView};
-use editor_model::{BlockId, Position, Selection};
+mod common;
+
+use common::{blocks, keys, markdown, open, selection, settle, type_text};
+use editor_gpui::EditorView;
+use editor_model::{Position, Selection};
 use ui::{
-    AppContext as _, Entity, EntityInputHandler as _, Focusable as _, Modifiers, ScrollDelta,
-    ScrollEvent, TestAppContext, VisualTestContext, point, px,
+    Entity, EntityInputHandler as _, Modifiers, ScrollDelta, ScrollEvent, TestAppContext,
+    VisualTestContext, point, px,
 };
-
-fn open<'a>(
-    cx: &'a mut TestAppContext,
-    markdown: &str,
-) -> (Entity<EditorView>, &'a mut VisualTestContext) {
-    cx.update(|cx| {
-        ui::init(cx);
-        editor_gpui::init(cx);
-    });
-    let markdown = markdown.to_owned();
-    let (view, vcx) = cx.add_window_view(move |window, cx| {
-        let state = cx.new(|cx| EditorState::from_markdown(&markdown, 1, cx));
-        let view = EditorView::new(state, cx);
-        let focus = view.focus_handle(cx);
-        window.focus(&focus, cx);
-        view
-    });
-    settle(vcx);
-    (view, vcx)
-}
-
-/// Draws a frame, so geometry and the input handler are current.
-fn settle(cx: &mut VisualTestContext) {
-    cx.run_until_parked();
-    cx.update(|window, cx| window.draw(cx).clear(cx));
-    cx.run_until_parked();
-}
-
-fn markdown(view: &Entity<EditorView>, cx: &mut VisualTestContext) -> String {
-    view.read_with(cx, |view, cx| view.state().read(cx).markdown())
-}
-
-fn selection(view: &Entity<EditorView>, cx: &mut VisualTestContext) -> Selection {
-    view.read_with(cx, |view, cx| view.state().read(cx).selection().clone())
-}
-
-fn blocks(view: &Entity<EditorView>, cx: &mut VisualTestContext) -> Vec<BlockId> {
-    view.read_with(cx, |view, cx| view.state().read(cx).snapshot().flat())
-}
-
-/// Presses keys. `secondary` stands for the platform's command
-/// modifier.
-fn keys(cx: &mut VisualTestContext, keystrokes: &str) {
-    let modifier = if cfg!(target_os = "macos") { "cmd" } else { "ctrl" };
-    cx.simulate_keystrokes(&keystrokes.replace("secondary", modifier));
-    settle(cx);
-}
-
-fn type_text(cx: &mut VisualTestContext, text: &str) {
-    cx.simulate_input(text);
-    settle(cx);
-}
 
 #[ui::test]
 fn typing_builds_a_document(cx: &mut TestAppContext) {

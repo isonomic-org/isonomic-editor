@@ -13,9 +13,9 @@ use std::rc::Rc;
 use editor_model::BlockId;
 use ui::base::text::editor_host::{Caret, LeafGeometry, collect_leaf_geometry};
 use ui::{
-    AnyElement, App, Bounds, Element, ElementId, ElementInputHandler, Entity, FocusHandle,
-    GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId, ListOffset, ListState,
-    Pixels, Window, fill, px, size,
+    AnyElement, App, Bounds, DispatchPhase, Element, ElementId, ElementInputHandler, Entity,
+    FocusHandle, GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId, ListOffset,
+    ListState, MouseMoveEvent, MouseUpEvent, Pixels, Window, fill, px, size,
 };
 
 use crate::rows::Drawn;
@@ -57,6 +57,8 @@ pub struct Surface {
     /// The rows the list asks for while it lays out.
     pub drawn: Drawn,
     pub head: Option<Head>,
+    /// Whether the caret is in the shown half of its blink.
+    pub caret_shown: bool,
     pub caret_color: Hsla,
     pub focus: FocusHandle,
     pub view: Entity<EditorView>,
@@ -179,9 +181,24 @@ impl Element for Surface {
         if let Some(child) = child {
             child.paint(window, cx);
         }
+        // A drag follows the pointer wherever it goes, so the view
+        // hears every move and release in the window.
+        let view = self.view.clone();
+        window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, cx| {
+            if phase == DispatchPhase::Bubble {
+                view.update(cx, |view, cx| view.mouse_move(event, window, cx));
+            }
+        });
+        let view = self.view.clone();
+        window.on_mouse_event(move |_: &MouseUpEvent, phase, _, cx| {
+            if phase == DispatchPhase::Bubble {
+                view.update(cx, |view, _| view.end_drag());
+            }
+        });
         let handler = ElementInputHandler::new(bounds, self.view.clone());
         window.handle_input(&self.focus, handler, cx);
         if let Some(caret) = caret
+            && self.caret_shown
             && self.focus.is_focused(window)
         {
             window.paint_quad(fill(*caret, self.caret_color));

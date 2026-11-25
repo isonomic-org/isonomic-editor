@@ -8,7 +8,7 @@ use editor_blocks::{normalizer, standard_registry};
 use editor_commands as cmd;
 use editor_model::{
     BlockDraft, BlockId, Content, Document, IdSource as _, Intent, MarkKind, Marks, Op, Position,
-    Selection, Transaction, kinds, next_grapheme, prev_grapheme,
+    Selection, Transaction, kinds,
 };
 use editor_store::Store;
 use ui::{Context, EventEmitter};
@@ -251,6 +251,12 @@ impl EditorState {
         cx.notify();
     }
 
+    /// Checks or unchecks a to-do.
+    pub fn toggle_todo(&mut self, id: BlockId, cx: &mut Context<Self>) {
+        let doc = self.snapshot();
+        self.run(cmd::toggle_todo(&doc, id), cx);
+    }
+
     pub fn undo(&mut self, cx: &mut Context<Self>) {
         if let Some(undone) = self.store.undo() {
             self.selection = undone.selection.unwrap_or_else(|| self.selection.clone());
@@ -299,76 +305,5 @@ impl EditorState {
             editor_formats::from_markdown(markdown, doc.registry().clone(), self.store.ids());
         let tx = cmd::insert_fragment(&doc, &self.selection, &fragment, self.store.ids());
         self.run(tx, cx);
-    }
-
-    /// The nearest block with text before or after `id` in document
-    /// order.
-    fn neighbour(doc: &Document, id: BlockId, forward: bool) -> Option<BlockId> {
-        let mut at = id;
-        loop {
-            at = if forward { doc.next_in_order(at)? } else { doc.prev_in_order(at)? };
-            if doc.get(at).is_some_and(|block| block.content.has_text()) {
-                return Some(at);
-            }
-        }
-    }
-
-    /// Moves one grapheme left or right, crossing into the next block
-    /// at an edge. Without `extend`, a range collapses to its end in
-    /// that direction.
-    pub fn move_horizontally(&mut self, forward: bool, extend: bool, cx: &mut Context<Self>) {
-        let doc = self.snapshot();
-        let Selection::Text { anchor, head } = self.selection.clone() else { return };
-        if !extend && anchor != head {
-            let forward_order = doc.path(anchor.block) < doc.path(head.block)
-                || (anchor.block == head.block && anchor.offset <= head.offset);
-            let to = if forward == forward_order { head } else { anchor };
-            return self.move_head(to, false, cx);
-        }
-        let text = self.text_of(head.block);
-        let to = if forward && head.offset < text.len() {
-            Position::new(head.block, next_grapheme(&text, head.offset))
-        } else if !forward && head.offset > 0 {
-            Position::new(head.block, prev_grapheme(&text, head.offset))
-        } else {
-            match Self::neighbour(&doc, head.block, forward) {
-                Some(next) if forward => Position::new(next, 0),
-                Some(prev) => Position::new(prev, self.text_of(prev).len()),
-                None => return,
-            }
-        };
-        self.move_head(to, extend, cx);
-    }
-
-    /// Moves to the start or the end of the block's text.
-    /// Moves the head to the start of the next block with text, or
-    /// the end of the previous one. At the document's edge it moves to
-    /// the edge of the block it is in.
-    pub fn move_by_block(&mut self, down: bool, extend: bool, cx: &mut Context<Self>) {
-        let Some(head) = self.head() else { return };
-        let doc = self.snapshot();
-        let mut at = head.block;
-        let to = loop {
-            let next = if down { doc.next_in_order(at) } else { doc.prev_in_order(at) };
-            let Some(next) = next else {
-                let offset = if down { self.text_of(head.block).len() } else { 0 };
-                break Position::new(head.block, offset);
-            };
-            at = next;
-            if doc
-                .get(at)
-                .is_some_and(|block| !matches!(block.content, editor_model::Content::None))
-            {
-                let offset = if down { 0 } else { self.text_of(at).len() };
-                break Position::new(at, offset);
-            }
-        };
-        self.move_head(to, extend, cx);
-    }
-
-    pub fn move_to_edge(&mut self, end: bool, extend: bool, cx: &mut Context<Self>) {
-        let Some(head) = self.head() else { return };
-        let offset = if end { self.text_of(head.block).len() } else { 0 };
-        self.move_head(Position::new(head.block, offset), extend, cx);
     }
 }

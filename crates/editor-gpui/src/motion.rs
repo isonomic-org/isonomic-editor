@@ -5,11 +5,17 @@
 //! pointer. Where a block is not drawn, movement falls back to the
 //! document's own order.
 
-use editor_model::BlockId;
+use editor_model::{BlockId, kinds};
 use ui::base::text::editor_host::Caret;
-use ui::{Context, MouseButton, MouseDownEvent, MouseMoveEvent, Window, point};
+use ui::{Context, MouseButton, MouseDownEvent, MouseMoveEvent, Pixels, Point, Window, point};
 
 use crate::view::EditorView;
+
+/// How far left of a to-do's text its checkbox reaches, in rems.
+const CHECKBOX_REMS: f32 = 2.;
+/// The most lines one frame scrolls while a drag holds the pointer
+/// past the top or the bottom.
+const MOST_LINES_A_FRAME: f32 = 6.;
 
 impl EditorView {
     /// Moves the head to the start or end of its visual line. Without
@@ -82,6 +88,27 @@ impl EditorView {
         }
     }
 
+    /// A to-do whose checkbox, which sits just left of its text, is
+    /// under the point.
+    fn checkbox_at(
+        &self,
+        at: Point<Pixels>,
+        window: &Window,
+        cx: &Context<Self>,
+    ) -> Option<BlockId> {
+        let frame = self.frame.borrow();
+        let doc = self.state.read(cx).snapshot();
+        let reach = window.rem_size() * CHECKBOX_REMS;
+        frame.order.iter().find_map(|(key, id)| {
+            let leaf = frame.leaves.get(key)?;
+            let bounds = leaf.bounds();
+            let beside = at.x < bounds.origin.x && at.x >= bounds.origin.x - reach;
+            let level = at.y >= bounds.origin.y && at.y < bounds.origin.y + leaf.line_height();
+            let todo = doc.get(*id).is_some_and(|block| block.kind.is(kinds::TODO));
+            (beside && level && todo).then_some(*id)
+        })
+    }
+
     pub(crate) fn mouse_down(
         &mut self,
         event: &MouseDownEvent,
@@ -89,11 +116,19 @@ impl EditorView {
         cx: &mut Context<Self>,
     ) {
         window.focus(&self.focus, cx);
-        if let Some(to) = self.position_at(event.position, cx) {
-            self.dragging = true;
-            let extend = event.modifiers.shift;
-            self.state.update(cx, |state, cx| state.move_head(to, extend, cx));
+        if let Some(id) = self.checkbox_at(event.position, window, cx) {
+            return self.state.update(cx, |state, cx| state.toggle_todo(id, cx));
         }
+        let Some(to) = self.position_at(event.position, cx) else { return };
+        let extend = event.modifiers.shift;
+        self.state.update(cx, |state, cx| match event.click_count {
+            2 => state.select_word_at(to, cx),
+            3 => state.select_block_at(to, cx),
+            _ => state.move_head(to, extend, cx),
+        });
+        // A second or third click selects a word or a block, and a
+        // drag after it would only undo that.
+        self.dragging = event.click_count == 1;
     }
 
     pub(crate) fn mouse_move(
@@ -103,11 +138,49 @@ impl EditorView {
         cx: &mut Context<Self>,
     ) {
         if !self.dragging || event.pressed_button != Some(MouseButton::Left) {
-            self.dragging = false;
-            return;
+            return self.end_drag();
         }
         if let Some(to) = self.position_at(event.position, cx) {
             self.state.update(cx, |state, cx| state.move_head(to, true, cx));
         }
+        let view = self.list.viewport_bounds();
+        let past =
+            event.position.y < view.origin.y || event.position.y > view.origin.y + view.size.height;
+        self.drag_past = past.then_some(event.position);
+        if past {
+            cx.notify();
+        }
+    }
+
+    pub(crate) fn end_drag(&mut self) {
+        self.dragging = false;
+        self.drag_past = None;
+    }
+
+    /// While a drag holds the pointer above or below the rows, scrolls
+    /// that way, further the further out the pointer is, and extends
+    /// the selection to the text now under it. Called once a frame.
+    pub(crate) fn drag_past_edge(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(at) = self.drag_past else { return };
+        let view = self.list.viewport_bounds();
+        let (top, bottom) = (view.origin.y, view.origin.y + view.size.height);
+        let line = window.line_height();
+        let most = line * MOST_LINES_A_FRAME;
+        let by = if at.y < top {
+            (at.y - top - line).max(-most)
+        } else if at.y > bottom {
+            (at.y - bottom + line).min(most)
+        } else {
+            self.drag_past = None;
+            return;
+        };
+        // The text under the pointer as of the last frame, which drew
+        // what the step before this one scrolled to.
+        let edge = point(at.x, at.y.clamp(top + line * 0.5, bottom - line * 0.5));
+        if let Some(to) = self.position_at(edge, cx) {
+            self.state.update(cx, |state, cx| state.move_head(to, true, cx));
+        }
+        self.list.scroll_by(by);
+        window.request_animation_frame();
     }
 }
