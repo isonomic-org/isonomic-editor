@@ -2,6 +2,23 @@
 
 Newest first.
 
+## 2026-11-25: measured on the Intel Mac
+
+macOS 15.7 on a 2.6 GHz six-core Intel laptop, native renderer, release build, three runs that agreed. The machine was not idle (load average 7 to 12).
+
+- All 61 tests pass there, and the `screenshot` example renders the document and the open insert menu.
+- `frames`, 10,000 blocks, the editor's share before the renderer:
+
+| | mean | 99th percentile | budget |
+|---|---|---|---|
+| Typing, one character a frame | 2.9 ms | 3.4 to 3.9 ms | keystroke to frame under 8 ms at the 95th percentile, at 5,000 blocks |
+| Moving the caret a block a frame | 2.9 to 3.0 ms | 3.5 to 3.7 ms | |
+| Open and draw the first frame | 0.77 s | | under 150 ms, off the main thread |
+
+**Typing is inside its budget** with room for the renderer. **Opening is not:** it takes five times the budget and runs on the main thread. About 70% of opening is the replication library's import, as noted below; the rest is reading every block once. Opening off the main thread and finding what the import spends its time on are the next two things for this number.
+
+**Not measured:** a quiet machine, the renderer's own time, a real display, memory.
+
 ## 2026-11-25: a hint in an empty paragraph
 
 - `docs/keys.md` lists every key, typing shortcut and pointer gesture. The word key (Control off macOS) now removes a word with Backspace or Delete, as Option already did.
@@ -57,7 +74,7 @@ Tested in a headless window with real layout and real key dispatch: a document t
 
 **Not yet, and known rough edges.**
 
-1. It has been rendered offscreen with the real renderer on Linux (software Vulkan); the frames are in `docs/images/`, made by the `screenshot` example. The `playground` example opens it in a window; it was run on Linux under a virtual display with software rendering and driven with real pointer and key events (click, type, shortcuts, wheel). On macOS (Intel, macOS 15) every test passes and the `screenshot` example renders its frame with the native renderer; the window itself has not been opened there, and nobody has used it by hand yet.
+1. It has been rendered offscreen with the real renderer on Linux (software Vulkan); the frames are in `docs/images/`, made by the `screenshot` example. The `playground` example opens it in a window; it was run on Linux under a virtual display with software rendering and driven with real pointer and key events (click, type, shortcuts, wheel). On macOS (Intel, macOS 15) every test passes and the `screenshot` example renders its frames with the native renderer. Nobody has used it by hand yet.
 2. Only the rows in view are drawn; see the entry above. Each frame still walks the whole document once to list its blocks in order.
 3. The view scrolls, brings the selection's head into view when it moves, and scrolls while a drag selects past the top or bottom. Up or Down into a block that is not drawn lands at that block's edge, not under the column the caret was in.
 4. An empty text block draws a zero-width space so it has a line for the caret. Inline atoms draw as a placeholder character.
