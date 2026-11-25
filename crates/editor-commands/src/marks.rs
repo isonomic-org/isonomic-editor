@@ -1,3 +1,6 @@
+// Copyright 2026 Anud Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use editor_model::{Content, Document, Intent, Mark, MarkKind, Op, Selection, Transaction};
 
 use crate::build::{block_ranges, content};

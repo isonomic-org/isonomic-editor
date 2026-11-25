@@ -1,3 +1,6 @@
+// Copyright 2026 Anud Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Document formats: canonical JSON, Markdown, HTML and plain text.
 //!
 //! Canonical JSON (`isonomic.doc/1`) is the clean structured form:

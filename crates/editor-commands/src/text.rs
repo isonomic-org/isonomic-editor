@@ -1,3 +1,6 @@
+// Copyright 2026 Anud Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use editor_model::{
     Content, Document, InlineText, Intent, Marks, Op, Position, Selection, Transaction,
     next_grapheme, next_word, prev_grapheme, prev_word,

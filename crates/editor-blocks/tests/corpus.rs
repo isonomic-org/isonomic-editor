@@ -1,3 +1,6 @@
+// Copyright 2026 Anud Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Fixture documents with golden outputs. Set `UPDATE_GOLDEN=1` to
 //! rewrite the golden files after an intended format change.
 

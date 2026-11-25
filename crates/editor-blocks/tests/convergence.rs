@@ -1,3 +1,6 @@
+// Copyright 2026 Anud Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Two replicas make random edits, exchange updates at random times,
 //! and must end up with the same valid document. No input may panic.
 

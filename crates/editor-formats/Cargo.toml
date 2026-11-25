@@ -4,6 +4,7 @@ description = "Canonical JSON, Markdown, HTML and plain text."
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 editor-model.workspace = true

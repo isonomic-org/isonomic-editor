@@ -4,6 +4,7 @@ description = "The replicated document: transactions, undo, anchors, export and 
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 editor-model.workspace = true

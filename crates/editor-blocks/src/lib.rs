@@ -1,3 +1,6 @@
+// Copyright 2026 Anud Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! The standard block set, as headless specs.
 //!
 //! A [`BlockSpec`] declares a block type: its schema and its entries

@@ -1,3 +1,6 @@
+// Copyright 2026 Anud Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Conversions between model values and replicated values.
 
 use std::collections::{BTreeMap, HashMap};

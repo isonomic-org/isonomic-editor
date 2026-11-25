@@ -1,3 +1,6 @@
+// Copyright 2026 Anud Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Rough timings for the headless path. Run with
 //! `cargo run --release -p editor-blocks --example bench -- 10000`.
 

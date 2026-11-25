@@ -1,3 +1,6 @@
+// Copyright 2026 Anud Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! A headless editing session: a store, a selection and the keys a
 //! person would press.
 #![allow(dead_code)]

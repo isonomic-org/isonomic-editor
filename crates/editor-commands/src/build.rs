@@ -1,3 +1,6 @@
+// Copyright 2026 Anud Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Shared helpers: selection geometry and a sequential op builder.
 
 use std::ops::Range;
