@@ -109,6 +109,33 @@ impl EditorView {
         Some(Position::new(id, offset))
     }
 
+    /// Moves the head to the start or end of its visual line. Without
+    /// geometry for the block it moves to the block's edge.
+    fn move_to_line_edge(&mut self, end: bool, extend: bool, cx: &mut Context<Self>) {
+        let Some(head) = self.state.read(cx).head() else { return };
+        let aim = {
+            let frame = self.frame.borrow();
+            self.keys.get(&head.block).and_then(|key| frame.leaves.get(key)).map(|leaf| {
+                let at = leaf.position_for_caret(Caret::new(head.offset.min(leaf.len())));
+                let bounds = leaf.bounds();
+                let x = if end { bounds.origin.x + bounds.size.width } else { bounds.origin.x };
+                (point(x, at.y + leaf.line_height() * 0.5), at.y)
+            })
+        };
+        let found = aim.and_then(|(aim, line)| Some((self.position_at(aim, cx)?, line)));
+        let Some((mut to, line)) = found.filter(|(to, _)| to.block == head.block) else {
+            self.state.update(cx, |state, cx| state.move_to_edge(end, extend, cx));
+            return;
+        };
+        // Where a line wraps, its end is also the next line's start and
+        // the caret draws there: stay on this line, one character back.
+        if end && self.caret_point(to).is_some_and(|at| at.y > line) {
+            let text = self.state.read(cx).text_of(to.block);
+            to.offset = text[..to.offset].char_indices().next_back().map_or(0, |(at, _)| at);
+        }
+        self.state.update(cx, |state, cx| state.move_head(to, extend, cx));
+    }
+
     /// Moves the head one visual line up or down, keeping its column.
     fn move_vertically(&mut self, down: bool, extend: bool, cx: &mut Context<Self>) {
         let Some(head) = self.state.read(cx).head() else { return };
@@ -311,18 +338,22 @@ impl Render for EditorView {
             .on_action(cx.listener(|this, _: &SelectRight, _, cx| {
                 this.edit(cx, |s, cx| s.move_horizontally(true, true, cx))
             }))
-            .on_action(cx.listener(|this, _: &MoveToStart, _, cx| {
-                this.edit(cx, |s, cx| s.move_to_edge(false, false, cx))
-            }))
-            .on_action(cx.listener(|this, _: &MoveToEnd, _, cx| {
-                this.edit(cx, |s, cx| s.move_to_edge(true, false, cx))
-            }))
-            .on_action(cx.listener(|this, _: &SelectToStart, _, cx| {
-                this.edit(cx, |s, cx| s.move_to_edge(false, true, cx))
-            }))
-            .on_action(cx.listener(|this, _: &SelectToEnd, _, cx| {
-                this.edit(cx, |s, cx| s.move_to_edge(true, true, cx))
-            }))
+            .on_action(
+                cx.listener(|this, _: &MoveToStart, _, cx| {
+                    this.move_to_line_edge(false, false, cx)
+                }),
+            )
+            .on_action(
+                cx.listener(|this, _: &MoveToEnd, _, cx| this.move_to_line_edge(true, false, cx)),
+            )
+            .on_action(
+                cx.listener(|this, _: &SelectToStart, _, cx| {
+                    this.move_to_line_edge(false, true, cx)
+                }),
+            )
+            .on_action(
+                cx.listener(|this, _: &SelectToEnd, _, cx| this.move_to_line_edge(true, true, cx)),
+            )
             .on_action(
                 cx.listener(|this, _: &MoveUp, _, cx| this.move_vertically(false, false, cx)),
             )

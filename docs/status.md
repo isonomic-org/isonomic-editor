@@ -13,13 +13,13 @@ Tested in a headless window with real layout and real key dispatch: a document t
 
 **Not yet, and known rough edges.**
 
-1. It has been rendered offscreen with the real renderer on Linux (software Vulkan); the frames are in `docs/images/`, made by the `screenshot` example. The `playground` example opens it in a window; it was run on Linux under a virtual display with software rendering and driven with real pointer and key events (click, type, shortcuts, wheel). It has not been run on macOS, and nobody has used it by hand yet.
+1. It has been rendered offscreen with the real renderer on Linux (software Vulkan); the frames are in `docs/images/`, made by the `screenshot` example. The `playground` example opens it in a window; it was run on Linux under a virtual display with software rendering and driven with real pointer and key events (click, type, shortcuts, wheel). On macOS (Intel, macOS 15) every test passes and the `screenshot` example renders its frame with the native renderer; the window itself has not been opened there, and nobody has used it by hand yet.
 2. Every block is rendered every frame; flat-row virtualization is milestone 2.
 3. The view scrolls, and brings the caret into view when it moves. It does not yet scroll while a drag selects past the edge.
 4. An empty text block draws a zero-width space so it has a line for the caret. Inline atoms draw as a placeholder character.
 5. A composition is not yet one undo step. The caret does not blink.
 6. Copy, cut and paste work and carry Markdown; there is no typed clipboard payload yet. No slash menu, block handles, toolbar or drag and drop.
-7. Home and End move to the block's edges, not the visual line's.
+7. Home and End move to the edges of the visual line. At a wrapped line's end the caret rests one character short of the wrap.
 
 ## 2026-11-25: undo, redo and import refresh only what changed
 
@@ -67,7 +67,7 @@ The repository is licensed under GPL-3.0-or-later: LICENSE at the root, the lice
 1. **Nothing is drawn yet.** `editor-gpui`, `ui` and the playground do not exist. The component library was confirmed to compile on Linux at revision `834fc6a5`; the text seam has not been exercised. This is milestone 1's first task and the spec's second spike.
 2. ~~Undo, redo and import re-read the whole document.~~ Done for everything but shape changes; see the entry above.
 3. **Opening is slower than the spike measured** (0.27 s against 41 ms at 10,000 blocks). The spike's blocks carried less. Opening must stay off the main thread; the cause needs a profile before milestone 2.
-4. **Nothing has run on macOS.** All numbers above are from Linux.
+4. **macOS runs the tests and renders a frame; nothing has been measured there.** All numbers above are from Linux.
 5. Limits not yet enforced: property size in bytes, table size (tables are milestone 3), normalization work per transaction.
 6. HTML import, the importer for the reference format, history checkpoints and compaction, presence, and the change feed as a stream are later milestones.
 7. Requests to other repositories (R1 to R6, S1, V1 in the spec) are not filed.
