@@ -35,7 +35,7 @@ pub struct InlineText { /* text + mark runs + inline atoms */ }
 - **Sync.** `export(since) -> bytes` and `import(bytes)`. The SDK moves the bytes.
 - **Remote changes** arrive as the same change summary, so the view handles local and remote edits with one code path.
 - **One replicated document per page.** Cross-block transactions, moves and a single undo history need one document. A synced block is its own replicated document, referenced by ID (B20).
-- **Sub-objects are created with the block.** A block's text, props and tunes objects are created in the operation that creates the block. Two peers creating the same child object concurrently would otherwise keep only one.
+- **Sub-objects are created with the block.** A block's text object is created in the operation that creates the block; two peers creating the same child object concurrently would otherwise keep only one. Properties and tunes are not objects: they are plain values on the block's own map, under prefixed keys, last writer wins per key. That merges the same way and keeps one nested object per block.
 - **Inline atoms** are one placeholder character under a non-expanding mark that carries the atom's attributes.
 - **Index units.** Our offsets are UTF-8 bytes. The library edits and marks in UTF-8 bytes directly; its cursors and mark removal take Unicode indices. Conversion happens inside `editor-store` and nowhere else.
 - **Presence** (carets, selections, names) travels as SDK events that carry anchors. The store does not depend on the library's presence support.
@@ -121,7 +121,7 @@ Unknown block types in a loaded document are kept intact and shown as a generic 
 
 | Tier | Blocks | Milestone |
 |---|---|---|
-| 1 | Paragraph, heading 1 to 3, bulleted list, numbered list, to-do, quote, divider, code | M1 |
+| 1 | Paragraph, heading (one type with a level of 1 to 3), bulleted list, numbered list, to-do, quote, divider, code | M1 |
 | 2 | Callout, toggle, toggle heading, table, image, file, bookmark, columns, equation, table of contents, page link, mention, date | M2 to M3 |
 | 3 | View block (Isonomic Views), grid block (Isonomic Grid), canvas block, synced block, button, template, AI block | M3 to M5 |
 
