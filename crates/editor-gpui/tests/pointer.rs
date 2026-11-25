@@ -205,10 +205,13 @@ fn any_document_takes_every_key_and_click(cx: &mut TestAppContext) {
                 "\u{0}\n\n\n```\n- [x] \t\r\n> ".into(),
             ));
             view.update(cx, |view, cx| {
-                view.replace_and_mark_text_in_range(Some(50..9), "か", Some(7..3), window, cx);
+                // Ranges that run backwards, as a confused caller might send.
+                let backwards = |start: usize, end: usize| std::ops::Range { start, end };
+                let (replace, select) = (backwards(50, 9), backwards(7, 3));
+                view.replace_and_mark_text_in_range(Some(replace), "か", Some(select), window, cx);
                 view.replace_text_in_range(Some(usize::MAX - 1..usize::MAX), "", window, cx);
                 view.unmark_text(window, cx);
-                let _ = view.text_for_range(4..2, &mut None, window, cx);
+                let _ = view.text_for_range(backwards(4, 2), &mut None, window, cx);
                 let _ = view.bounds_for_range(0..999, Default::default(), window, cx);
             });
         });
