@@ -2,6 +2,23 @@
 
 Newest first.
 
+## 2026-11-25: only the rows in view are drawn
+
+- The view lists every block in document order in the toolkit's list and builds elements only for the rows the list is about to show. Rows not yet measured get an estimated height, so the scrollbar spans the whole document from the first frame. The standard scrollbar sits over the rows.
+- Bringing the selection's head into view works for a row that is not drawn: the list is scrolled to it first and the caret is lined up once it has geometry. It now follows the head of a range selection too, not only a caret.
+- Up and Down from a block with no drawn neighbour that way, or with the head out of view, step to the neighbouring block in document order.
+- Numbered items are numbered from their run of siblings, worked out once per frame for the rows drawn.
+- **Specification changed to match the code:** the row index is the toolkit's list state, not a tree owned by the view (`docs/spec/view.md`, B9).
+- `cargo run --release -p editor-gpui --example frames` times the editor's share of a frame (snapshot, rows, layout, painting into a scene; not the renderer).
+
+| 2-core 2.1 GHz Linux machine, 900 by 1200 window | before | now |
+|---|---|---|
+| Typing, one character a frame | 128 ms at 2,000 blocks | 3.1 ms at 10,000 blocks |
+| Moving the caret, one step a frame | 133 ms at 2,000 blocks | 3.4 ms at 10,000 blocks |
+| Open and draw the first frame, 10,000 blocks | not measured | 0.6 s |
+
+Tested in a headless window with 5,000 numbered items: a screenful of rows is drawn; walking the caret 120 rows down keeps it in the window; the wheel moves the rows by exactly what it asks; an edit and its undo far from the top leave the rest alone.
+
 ## 2026-11-25: the editor draws and takes input
 
 `ui` re-exports the component library at one pinned revision. `editor-gpui` adds:
@@ -14,8 +31,8 @@ Tested in a headless window with real layout and real key dispatch: a document t
 **Not yet, and known rough edges.**
 
 1. It has been rendered offscreen with the real renderer on Linux (software Vulkan); the frames are in `docs/images/`, made by the `screenshot` example. The `playground` example opens it in a window; it was run on Linux under a virtual display with software rendering and driven with real pointer and key events (click, type, shortcuts, wheel). On macOS (Intel, macOS 15) every test passes and the `screenshot` example renders its frame with the native renderer; the window itself has not been opened there, and nobody has used it by hand yet.
-2. Every block is rendered every frame; flat-row virtualization is milestone 2.
-3. The view scrolls, and brings the caret into view when it moves. It does not yet scroll while a drag selects past the edge.
+2. Only the rows in view are drawn; see the entry above. Each frame still walks the whole document once to list its blocks in order.
+3. The view scrolls, and brings the selection's head into view when it moves. It does not yet scroll while a drag selects past the edge. Up or Down into a block that is not drawn lands at that block's edge, not under the column the caret was in.
 4. An empty text block draws a zero-width space so it has a line for the caret. Inline atoms draw as a placeholder character.
 5. A composition is not yet one undo step. The caret does not blink.
 6. Copy, cut and paste work and carry Markdown; there is no typed clipboard payload yet. No slash menu, block handles, toolbar or drag and drop.

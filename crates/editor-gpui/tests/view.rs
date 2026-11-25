@@ -9,8 +9,8 @@ extern crate ui as gpui;
 use editor_gpui::{EditorState, EditorView};
 use editor_model::{BlockId, Position, Selection};
 use ui::{
-    AppContext as _, Entity, EntityInputHandler as _, Focusable as _, Modifiers, TestAppContext,
-    VisualTestContext, point, px,
+    AppContext as _, Entity, EntityInputHandler as _, Focusable as _, Modifiers, ScrollDelta,
+    ScrollEvent, TestAppContext, VisualTestContext, point, px,
 };
 
 fn open<'a>(
@@ -217,16 +217,17 @@ fn the_caret_is_scrolled_into_view(cx: &mut TestAppContext) {
     let ids = blocks(&view, cx);
     let height = cx.update(|window, _| window.viewport_size().height);
     let caret_y = |view: &Entity<EditorView>, cx: &mut VisualTestContext, block: usize| {
-        view.read_with(cx, |view, _| view.caret_point(Position::new(ids[block], 0))).unwrap().y
+        view.read_with(cx, |view, _| view.caret_point(Position::new(ids[block], 0))).map(|at| at.y)
     };
-    assert!(caret_y(&view, cx, 399) > height, "the last block starts far below the window");
+    assert_eq!(caret_y(&view, cx, 399), None, "the last block is far below and not drawn");
     view.update(cx, |view, cx| {
         view.state().update(cx, |state, cx| state.select(Selection::caret(ids[399], 0), cx));
     });
     settle(cx);
     settle(cx);
-    let y = caret_y(&view, cx, 399);
+    let y = caret_y(&view, cx, 399).unwrap();
     assert!(y > px(0.) && y < height, "the caret is inside the window, at {y:?}");
+    assert_eq!(caret_y(&view, cx, 0), None, "and the first block no longer is");
     keys(cx, "end enter");
     type_text(cx, "typed at the end");
     assert!(markdown(&view, cx).ends_with("typed at the end\n"));
@@ -235,8 +236,53 @@ fn the_caret_is_scrolled_into_view(cx: &mut TestAppContext) {
     });
     settle(cx);
     settle(cx);
-    let y = caret_y(&view, cx, 0);
+    let y = caret_y(&view, cx, 0).unwrap();
     assert!(y >= px(0.) && y < height, "and back at the top, at {y:?}");
+}
+
+#[ui::test]
+fn only_the_rows_in_view_are_drawn(cx: &mut TestAppContext) {
+    let long: String = (0..5_000).map(|n| format!("{}. item {n}\n", n + 1)).collect();
+    let (view, cx) = open(cx, &long);
+    let ids = blocks(&view, cx);
+    assert_eq!(ids.len(), 5_000);
+    let drawn = view.read_with(cx, |view, _| view.drawn_leaves());
+    assert!(drawn > 5 && drawn < 200, "a screenful of rows, not {drawn}");
+
+    // Walking down past the bottom keeps the caret in the window, one
+    // block at a time.
+    let height = cx.update(|window, _| window.viewport_size().height);
+    for _ in 0..120 {
+        keys(cx, "down");
+    }
+    let head = selection(&view, cx).head().unwrap();
+    assert_eq!(head.block, ids[120]);
+    settle(cx);
+    let y = view.read_with(cx, |view, _| view.caret_point(head)).unwrap().y;
+    assert!(y > px(0.) && y < height, "the caret is inside the window, at {y:?}");
+    assert!(view.read_with(cx, |view, _| view.drawn_leaves()) < 200);
+
+    // The wheel scrolls the rows; what scrolled away is no longer drawn.
+    let before = view.read_with(cx, |view, _| view.caret_point(head)).unwrap().y;
+    cx.simulate_event(ScrollEvent {
+        position: point(px(100.), px(100.)),
+        delta: ScrollDelta::Pixels(point(px(0.), px(-90.))),
+        ..Default::default()
+    });
+    settle(cx);
+    let after = view.read_with(cx, |view, _| view.caret_point(head)).unwrap().y;
+    assert_eq!(before - after, px(90.), "the row moved up by what the wheel asked");
+
+    // Editing far from the top changes only what it should.
+    type_text(cx, "x");
+    keys(cx, "enter");
+    assert_eq!(blocks(&view, cx).len(), 5_001);
+    keys(cx, "secondary-z secondary-z");
+    assert_eq!(blocks(&view, cx), ids);
+    for _ in 0..120 {
+        keys(cx, "up");
+    }
+    assert_eq!(selection(&view, cx).head().unwrap().block, ids[0]);
 }
 
 #[ui::test]

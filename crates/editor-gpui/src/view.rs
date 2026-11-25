@@ -1,24 +1,34 @@
 // Copyright 2026 Anud Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::ops::Range;
+use std::rc::Rc;
 
 use editor_commands::selection_ranges;
-use editor_model::{BlockId, Document, MarkKind, Position, Selection, kinds};
-use ui::base::text::editor_host::{BlockNode, Caret, FlowPosition, RenderContext};
+use editor_model::{BlockId, Document, MarkKind, Position, Selection};
+use ui::base::Scrollbar;
+use ui::base::text::editor_host::Caret;
 use ui::component::ActiveTheme as _;
 use ui::{
-    AnyElement, App, Bounds, ClipboardItem, Context, Entity, FocusHandle, Focusable, Hsla,
-    InteractiveElement as _, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent,
-    ParentElement as _, Pixels, Point, Render, ScrollHandle, StatefulInteractiveElement as _,
-    Styled as _, Subscription, Window, div, point, px,
+    App, Bounds, ClipboardItem, Context, Entity, FocusHandle, Focusable, Hsla,
+    InteractiveElement as _, IntoElement, ListAlignment, ListState, MouseButton,
+    ParentElement as _, Pixels, Point, Render, Styled as _, Subscription, Window, div, list, px,
 };
 
 use crate::actions::*;
-use crate::nodes::node_for;
+use crate::rows::{Drawn, Rows, SharedKeys};
 use crate::state::EditorState;
-use crate::surface::{SharedFrame, Surface};
+use crate::surface::{Head, SharedFrame, Surface};
+
+/// How far past the window's edges rows are measured ahead of being
+/// scrolled to.
+const OVERDRAW: f32 = 600.;
+/// Above this many new rows at once, every row not yet measured is
+/// given an estimated height again, so the scrollbar is about right
+/// before they are seen.
+const ESTIMATE_ABOVE: usize = 64;
 
 /// Draws an [`EditorState`] and routes input to it.
 pub struct EditorView {
@@ -26,10 +36,18 @@ pub struct EditorView {
     pub(crate) focus: FocusHandle,
     pub(crate) frame: SharedFrame,
     /// A stable number per block: its leaf key and its element ID.
-    pub(crate) keys: HashMap<BlockId, u64>,
-    next_key: u64,
-    dragging: bool,
-    scroll: ScrollHandle,
+    pub(crate) keys: SharedKeys,
+    pub(crate) dragging: bool,
+    /// The rows: every block in document order, of which the list
+    /// draws the ones in view.
+    pub(crate) list: ListState,
+    listed: Rc<Vec<BlockId>>,
+    drawn: Drawn,
+    /// Set by the surface when the head's row turned out not to be
+    /// drawn after all, to try once more on the next frame.
+    reveal_again: Rc<Cell<bool>>,
+    /// The list width that row heights were last estimated for.
+    estimated: Rc<Cell<Pixels>>,
     /// The head as of the last frame; a change scrolls it into view.
     last_head: Option<Position>,
     _observe: Subscription,
@@ -42,10 +60,13 @@ impl EditorView {
             state,
             focus: cx.focus_handle(),
             frame: SharedFrame::default(),
-            keys: HashMap::new(),
-            next_key: 1,
+            keys: SharedKeys::default(),
             dragging: false,
-            scroll: ScrollHandle::new(),
+            list: ListState::new(0, ListAlignment::Top, px(OVERDRAW)),
+            listed: Rc::default(),
+            drawn: Drawn::default(),
+            reveal_again: Rc::default(),
+            estimated: Rc::default(),
             last_head: None,
             _observe: observe,
         }
@@ -53,13 +74,6 @@ impl EditorView {
 
     pub fn state(&self) -> &Entity<EditorState> {
         &self.state
-    }
-
-    fn key(&mut self, id: BlockId) -> u64 {
-        *self.keys.entry(id).or_insert_with(|| {
-            self.next_key += 1;
-            self.next_key
-        })
     }
 
     /// How many text leaves the last frame drew.
@@ -70,13 +84,13 @@ impl EditorView {
     /// Where a block's text was drawn in the last frame.
     pub fn leaf_bounds(&self, id: BlockId) -> Option<Bounds<Pixels>> {
         let frame = self.frame.borrow();
-        Some(frame.leaves.get(self.keys.get(&id)?)?.bounds())
+        Some(frame.leaves.get(&self.keys.borrow().get(id)?)?.bounds())
     }
 
     /// Where a caret at this position was, or would be, drawn.
     pub fn caret_point(&self, at: Position) -> Option<Point<Pixels>> {
         let frame = self.frame.borrow();
-        let leaf = frame.leaves.get(self.keys.get(&at.block)?)?;
+        let leaf = frame.leaves.get(&self.keys.borrow().get(at.block)?)?;
         Some(leaf.position_for_caret(Caret::new(at.offset.min(leaf.len()))))
     }
 
@@ -109,89 +123,24 @@ impl EditorView {
         Some(Position::new(id, offset))
     }
 
-    /// Moves the head to the start or end of its visual line. Without
-    /// geometry for the block it moves to the block's edge.
-    fn move_to_line_edge(&mut self, end: bool, extend: bool, cx: &mut Context<Self>) {
-        let Some(head) = self.state.read(cx).head() else { return };
-        let aim = {
-            let frame = self.frame.borrow();
-            self.keys.get(&head.block).and_then(|key| frame.leaves.get(key)).map(|leaf| {
-                let at = leaf.position_for_caret(Caret::new(head.offset.min(leaf.len())));
-                let bounds = leaf.bounds();
-                let x = if end { bounds.origin.x + bounds.size.width } else { bounds.origin.x };
-                (point(x, at.y + leaf.line_height() * 0.5), at.y)
-            })
-        };
-        let found = aim.and_then(|(aim, line)| Some((self.position_at(aim, cx)?, line)));
-        let Some((mut to, line)) = found.filter(|(to, _)| to.block == head.block) else {
-            self.state.update(cx, |state, cx| state.move_to_edge(end, extend, cx));
-            return;
-        };
-        // Where a line wraps, its end is also the next line's start and
-        // the caret draws there: stay on this line, one character back.
-        if end && self.caret_point(to).is_some_and(|at| at.y > line) {
-            let text = self.state.read(cx).text_of(to.block);
-            to.offset = text[..to.offset].char_indices().next_back().map_or(0, |(at, _)| at);
-        }
-        self.state.update(cx, |state, cx| state.move_head(to, extend, cx));
-    }
-
-    /// Moves the head one visual line up or down, keeping its column.
-    fn move_vertically(&mut self, down: bool, extend: bool, cx: &mut Context<Self>) {
-        let Some(head) = self.state.read(cx).head() else { return };
-        let target = {
-            let frame = self.frame.borrow();
-            let Some(key) = self.keys.get(&head.block) else { return };
-            let Some(leaf) = frame.leaves.get(key) else { return };
-            let at = leaf.position_for_caret(Caret::new(head.offset.min(leaf.len())));
-            let line = leaf.line_height();
-            let bounds = leaf.bounds();
-            let y = if down { at.y + line * 1.5 } else { at.y - line * 0.5 };
-            if y >= bounds.origin.y && y < bounds.origin.y + bounds.size.height {
-                Some(point(at.x, y))
-            } else {
-                // Leave this block: aim at the nearest line of the
-                // next drawn text leaf in that direction.
-                let here = frame.order.iter().position(|(k, _)| k == key);
-                let mut others: Box<dyn Iterator<Item = &(u64, BlockId)>> = match (here, down) {
-                    (Some(here), true) => Box::new(frame.order[here + 1..].iter()),
-                    (Some(here), false) => Box::new(frame.order[..here].iter().rev()),
-                    (None, _) => Box::new(std::iter::empty()),
-                };
-                others.find_map(|(key, _)| frame.leaves.get(key)).map(|next| {
-                    let bounds = next.bounds();
-                    let half = next.line_height() * 0.5;
-                    let y = if down {
-                        bounds.origin.y + half
-                    } else {
-                        bounds.origin.y + bounds.size.height - half
-                    };
-                    point(at.x, y)
-                })
-            }
-        };
-        if let Some(to) = target.and_then(|target| self.position_at(target, cx)) {
-            self.state.update(cx, |state, cx| state.move_head(to, extend, cx));
-        }
-    }
-
-    fn mouse_down(&mut self, event: &MouseDownEvent, window: &mut Window, cx: &mut Context<Self>) {
-        window.focus(&self.focus, cx);
-        if let Some(to) = self.position_at(event.position, cx) {
-            self.dragging = true;
-            let extend = event.modifiers.shift;
-            self.state.update(cx, |state, cx| state.move_head(to, extend, cx));
-        }
-    }
-
-    fn mouse_move(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
-        if !self.dragging || event.pressed_button != Some(MouseButton::Left) {
-            self.dragging = false;
+    /// Tells the list which rows changed since the last frame: the
+    /// blocks between the longest unchanged start and end.
+    fn list_rows(&mut self, order: &Rc<Vec<BlockId>>) {
+        let old = &self.listed;
+        if **old == **order {
             return;
         }
-        if let Some(to) = self.position_at(event.position, cx) {
-            self.state.update(cx, |state, cx| state.move_head(to, true, cx));
+        let start = old.iter().zip(order.iter()).take_while(|(a, b)| a == b).count();
+        let most = old.len().min(order.len()) - start;
+        let end =
+            old.iter().rev().zip(order.iter().rev()).take(most).take_while(|(a, b)| a == b).count();
+        let added = order.len() - start - end;
+        self.list.splice(start..old.len() - end, added);
+        if added > ESTIMATE_ABOVE {
+            // Estimate again after the next layout.
+            self.estimated.take();
         }
+        self.listed = order.clone();
     }
 
     /// Selection highlights for the frame, by leaf key.
@@ -203,10 +152,9 @@ impl EditorView {
     ) -> HashMap<u64, Vec<(Range<usize>, Hsla)>> {
         let mut out: HashMap<u64, Vec<(Range<usize>, Hsla)>> = HashMap::new();
         let mut add = |id: BlockId, range: Range<usize>| {
-            if let Some(key) = self.keys.get(&id)
-                && range.start < range.end
-            {
-                out.entry(*key).or_default().push((range, color));
+            if range.start < range.end {
+                let key = self.keys.borrow_mut().of(id);
+                out.entry(key).or_default().push((range, color));
             }
         };
         match selection {
@@ -234,76 +182,65 @@ impl Focusable for EditorView {
 }
 
 impl Render for EditorView {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let (doc, selection) = {
             let state = self.state.read(cx);
             (state.snapshot(), state.selection().clone())
         };
         let (selection_color, caret_color) = (cx.theme().selection, cx.theme().caret);
-        let mut nodes: Vec<BlockNode> = Vec::new();
-        let mut order = Vec::new();
-        let mut depths = Vec::new();
-        let mut numbers: HashMap<Option<BlockId>, u32> = HashMap::new();
-        for id in doc.flat() {
-            let Some(block) = doc.get(id) else { continue };
-            let parent = doc.parent(id);
-            let number = if block.kind.is(kinds::NUMBERED) {
-                let count = numbers.entry(parent).or_insert(0);
-                *count += 1;
-                *count
-            } else {
-                numbers.remove(&parent);
-                0
-            };
-            let key = self.key(id);
-            nodes.push(node_for(&doc, block, key, number, selection_color));
-            order.push((key, id));
-            depths.push(doc.depth(id).saturating_sub(1));
-        }
-        let rcx = RenderContext::from_app(cx);
-        let refs: Vec<&BlockNode> = nodes.iter().collect();
-        let indent = window.rem_size() * 1.5;
-        let rows: Vec<AnyElement> = refs
-            .iter()
-            .enumerate()
-            .map(|(ix, node)| {
-                let flow = FlowPosition::at(&refs, ix, ix + 1 == refs.len());
-                let id = ("editor-block", order[ix].0 as usize);
-                div()
-                    .pl(indent * depths[ix] as f32)
-                    .child(node.render_with_id(id, flow, &rcx, window, cx))
-                    .into_any_element()
-            })
-            .collect();
-        let caret = match &selection {
-            Selection::Text { anchor, head } if anchor == head => {
-                self.keys.get(&head.block).map(|key| (*key, head.offset))
-            }
-            _ => None,
-        };
+        let order = Rc::new(doc.flat());
+        self.list_rows(&order);
+        // The head is where the caret goes and what scrolling follows.
         let head = selection.head();
-        let reveal = head != self.last_head;
+        let retry = self.reveal_again.take();
+        let reveal = head != self.last_head || retry;
         self.last_head = head;
+        let head = head.map(|head| Head {
+            key: self.keys.borrow_mut().of(head.block),
+            offset: head.offset,
+            row: if reveal { order.iter().position(|id| *id == head.block) } else { None },
+            caret: selection.is_caret(),
+        });
+        if let Some(Head { key, row: Some(row), .. }) = head
+            && !retry
+            && !self.frame.borrow().leaves.contains_key(&key)
+        {
+            // A head in a row that is not drawn is brought into the
+            // list's view first; the surface then lines up the caret.
+            self.list.scroll_to_reveal_item(row);
+        }
         let decorations = self.decorations(&doc, &selection, selection_color);
-        self.frame.borrow_mut().order = order;
+        self.drawn.borrow_mut().clear();
+        let rows = Rows {
+            doc,
+            order,
+            keys: self.keys.clone(),
+            highlight: selection_color,
+            drawn: self.drawn.clone(),
+            numbers: Default::default(),
+        };
+        let rows = list(self.list.clone(), move |ix, window, cx| rows.row(ix, window, cx));
         let surface = Surface {
-            child: Some(div().flex().flex_col().children(rows).into_any_element()),
+            child: Some(rows.size_full().into_any_element()),
             decorations,
             frame: self.frame.clone(),
-            caret,
+            drawn: self.drawn.clone(),
+            head,
             caret_color,
             focus: self.focus.clone(),
             view: cx.entity(),
-            scroll: self.scroll.clone(),
+            list: self.list.clone(),
             reveal,
+            retry,
+            again: self.reveal_again.clone(),
+            estimated: self.estimated.clone(),
         };
         div()
             .id("isonomic-editor")
             .key_context(CONTEXT)
             .track_focus(&self.focus)
+            .relative()
             .size_full()
-            .overflow_y_scroll()
-            .track_scroll(&self.scroll)
             .on_action(cx.listener(|this, _: &Backspace, _, cx| {
                 this.edit(cx, |s, cx| s.backspace(false, cx))
             }))
@@ -400,6 +337,15 @@ impl Render for EditorView {
             .on_mouse_move(cx.listener(Self::mouse_move))
             .on_mouse_up(MouseButton::Left, cx.listener(|this, _, _, _| this.dragging = false))
             .child(surface)
+            .child(
+                div()
+                    .absolute()
+                    .top_0()
+                    .right_0()
+                    .bottom_0()
+                    .w(Scrollbar::width())
+                    .child(Scrollbar::vertical(&self.list).viewport_from_layout()),
+            )
     }
 }
 
