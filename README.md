@@ -46,6 +46,14 @@ let update = store.export_since(&their_version)?;
 other.import(&update)?;
 ```
 
+## Try it
+
+```sh
+cargo run -p editor-gpui --example playground
+```
+
+Opens the editor in a window. It needs the component library's system dependencies; on Linux those are the usual windowing, font and Vulkan development packages.
+
 ## Develop
 
 ```sh
