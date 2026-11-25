@@ -128,6 +128,17 @@ fn platform_text_input_composes_in_place(cx: &mut TestAppContext) {
     settle(cx);
     assert_eq!(markdown(&view, cx), "a日本b\n");
     assert_eq!(selection(&view, cx), Selection::caret(id, 7));
+
+    // To the person typing, the whole composition was one edit.
+    keys(cx, "secondary-z");
+    assert_eq!(markdown(&view, cx), "ab\n");
+    keys(cx, "secondary-shift-z");
+    assert_eq!(markdown(&view, cx), "a日本b\n");
+    // And what is typed next is its own step again.
+    keys(cx, "enter");
+    type_text(cx, "x");
+    keys(cx, "secondary-z");
+    assert_eq!(markdown(&view, cx), "a日本\n\nb\n");
 }
 
 #[ui::test]

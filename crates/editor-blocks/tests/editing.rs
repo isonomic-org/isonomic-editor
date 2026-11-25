@@ -333,3 +333,32 @@ fn a_divider_from_the_menu_replaces_an_empty_block_or_follows_a_full_one() {
     assert_eq!(s.markdown(), "---\n\nafter \n\n---\n");
     assert_eq!(s.selection, Selection::caret(block, 6), "the caret stays in the text");
 }
+
+#[test]
+fn a_joined_change_shares_the_last_undo_step() {
+    let mut s = Session::new(1);
+    s.type_text("ab");
+    let block = s.selection.head().unwrap().block;
+    // Replace what was typed, as an input method does: a selection,
+    // then typing over it. Unjoined, that is a step of its own.
+    for replacement in ["cd", "ef"] {
+        s.selection = Selection::range(block, 0, 2);
+        s.store.join_next(true);
+        let doc = s.doc();
+        assert!(s.run(cmd::insert_text(&doc, &s.selection, replacement, None)));
+    }
+    assert_eq!(s.markdown(), "ef\n");
+    assert!(s.undo());
+    assert_eq!(s.markdown(), "\n", "one undo takes back the typing and both replacements");
+
+    // The request covers one change only, and can be taken back.
+    s.type_text("a");
+    s.store.join_next(true);
+    s.store.join_next(false);
+    s.enter();
+    s.type_text("b");
+    assert!(s.undo());
+    assert_eq!(s.doc().len(), 2, "the typing after the new block is undone");
+    assert!(s.undo());
+    assert_eq!((s.doc().len(), s.markdown().as_str()), (1, "a\n"), "then the new block, alone");
+}

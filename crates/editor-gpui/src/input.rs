@@ -26,14 +26,14 @@ impl EditorView {
         self.state.update(cx, |state, cx| {
             let head = state.head()?;
             let current = state.text_of(head.block);
+            let composing =
+                state.composing().filter(|(block, _)| *block == head.block).map(|(_, r)| r.clone());
+            // Each update of a composition replaces the last: to the
+            // person typing, all of them are one edit.
+            state.store.join_next(composing.is_some());
             let range = range_utf16
                 .map(|range| from_utf16(&current, range.start)..from_utf16(&current, range.end))
-                .or_else(|| {
-                    state
-                        .composing()
-                        .filter(|(block, _)| *block == head.block)
-                        .map(|(_, r)| r.clone())
-                });
+                .or(composing);
             if let Some(range) = range {
                 state.select(Selection::range(head.block, range.start, range.end), cx);
             }
@@ -42,6 +42,7 @@ impl EditorView {
             } else if !state.selection().is_caret() {
                 state.backspace(false, cx);
             }
+            state.store.join_next(false);
             let caret = state.head()?;
             Some((caret.block, caret.offset.saturating_sub(text.len())))
         })

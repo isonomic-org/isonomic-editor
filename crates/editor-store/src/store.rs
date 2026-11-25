@@ -102,6 +102,8 @@ pub struct Store {
     ids: SeqIds,
     steps: Vec<Step>,
     undone: Vec<Step>,
+    /// The next change joins the last undo step.
+    join_next: bool,
     normalizer: Option<Normalizer>,
 }
 
@@ -174,6 +176,7 @@ impl Store {
             handles: HashMap::new(),
             steps: Vec::new(),
             undone: Vec::new(),
+            join_next: false,
             normalizer: None,
         }
     }
@@ -208,6 +211,16 @@ impl Store {
         &mut self.ids
     }
 
+    /// Makes the next change part of the last undo step, whatever the
+    /// selection did in between and whatever kind of change it is. For
+    /// a run of edits that is one act to the person making it, such as
+    /// an input method replacing the text it is composing. It applies
+    /// to the next call to [`Store::apply`] only; pass `false` to take
+    /// the request back if that call turns out not to be needed.
+    pub fn join_next(&mut self, join: bool) {
+        self.join_next = join;
+    }
+
     /// Applies a transaction atomically: all of it, plus the repairs
     /// it calls for, or nothing. `before` is the selection the user
     /// had, restored by undo.
@@ -216,6 +229,7 @@ impl Store {
         tx: &Transaction,
         before: Option<&Selection>,
     ) -> Result<Changes, StoreError> {
+        let join = std::mem::take(&mut self.join_next);
         let mut changes = Changes::default();
         let mut dirty = false;
         let mut result = self.apply_ops(&tx.ops, &mut changes, &mut dirty);
@@ -239,10 +253,11 @@ impl Store {
         let after = tx.selection.clone();
         match self.steps.last_mut() {
             Some(last)
-                if tx.intent == Intent::Typing
-                    && last.intent == Intent::Typing
-                    && last.after.is_some()
-                    && last.after.as_ref() == before =>
+                if join
+                    || (tx.intent == Intent::Typing
+                        && last.intent == Intent::Typing
+                        && last.after.is_some()
+                        && last.after.as_ref() == before) =>
             {
                 last.commits += 1;
                 last.after = after;

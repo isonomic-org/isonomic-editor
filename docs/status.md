@@ -2,6 +2,11 @@
 
 Newest first.
 
+## 2026-11-25: a composition is one undo step
+
+- `Store::join_next` makes the next change part of the last undo step. The view asks for it each time an input method replaces the text it is composing, so undo takes back the whole composition at once and redo brings it back.
+- `docs/requests.md` lists what this repository needs from the component library, the SDK and Isonomic Views, with what was learned building the view. None of it has been filed in those repositories yet.
+
 ## 2026-11-25: the pointer, word and document keys, a blinking caret
 
 - A double click selects a word (or the gap between words), a triple click the block's text. A click on a to-do's checkbox ticks or unticks it.
@@ -50,7 +55,7 @@ Tested in a headless window with real layout and real key dispatch: a document t
 2. Only the rows in view are drawn; see the entry above. Each frame still walks the whole document once to list its blocks in order.
 3. The view scrolls, brings the selection's head into view when it moves, and scrolls while a drag selects past the top or bottom. Up or Down into a block that is not drawn lands at that block's edge, not under the column the caret was in.
 4. An empty text block draws a zero-width space so it has a line for the caret. Inline atoms draw as a placeholder character.
-5. A composition is not yet one undo step. The caret's blink timer runs while the editor is not focused, where it only costs a repaint.
+5. The caret's blink timer runs while the editor is not focused, where it only costs a repaint.
 6. Copy, cut and paste work and carry Markdown; there is no typed clipboard payload yet. The insert menu works; it is not grouped and does not scroll, which a longer list of block types will need. No block handles, toolbar or drag and drop.
 7. Home and End move to the edges of the visual line. At a wrapped line's end the caret rests one character short of the wrap.
 
@@ -103,7 +108,7 @@ The repository is licensed under GPL-3.0-or-later: LICENSE at the root, the lice
 4. **macOS runs the tests and renders a frame; nothing has been measured there.** All numbers above are from Linux.
 5. Limits not yet enforced: property size in bytes, table size (tables are milestone 3), normalization work per transaction.
 6. HTML import, the importer for the reference format, history checkpoints and compaction, presence, and the change feed as a stream are later milestones.
-7. Requests to other repositories (R1 to R6, S1, V1 in the spec) are not filed.
+7. Requests to other repositories (R1 to R7, S1, V1) are written up in `docs/requests.md` and not yet filed there.
 
 **Decisions made while building, to confirm.**
 
