@@ -15,9 +15,11 @@
 extern crate ui as gpui;
 
 mod actions;
+mod blink;
 mod input;
 mod menu;
 mod motion;
+mod moves;
 mod nodes;
 mod rows;
 mod state;

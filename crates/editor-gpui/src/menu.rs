@@ -10,8 +10,8 @@ use editor_model::Position;
 use ui::base::text::editor_host::Caret;
 use ui::component::{ActiveTheme as _, ThemeStyled as _};
 use ui::{
-    AnyElement, Context, InteractiveElement as _, IntoElement as _, MouseButton,
-    ParentElement as _, Styled as _, anchored, deferred, div, point, rems,
+    Anchor, AnyElement, Bounds, Context, InteractiveElement as _, IntoElement as _, MouseButton,
+    ParentElement as _, Pixels, Styled as _, Window, anchored, canvas, deferred, div, point, rems,
 };
 
 use crate::state::EditorState;
@@ -19,6 +19,10 @@ use crate::view::EditorView;
 
 /// The narrowest the menu is drawn, in rems.
 const MENU_REMS: f32 = 14.;
+/// The gap between the caret's line and the menu, in rems.
+const GAP_REMS: f32 = 0.25;
+/// The space above and below each row's text together, in rems.
+const ROW_PADDING_REMS: f32 = 0.5;
 
 /// The open insert menu.
 #[derive(Clone, Debug, PartialEq)]
@@ -99,16 +103,35 @@ impl EditorState {
 }
 
 impl EditorView {
-    /// The open menu as an element floating under the trigger. Nothing
+    /// Where the open insert menu was drawn in the last frame.
+    pub fn menu_bounds(&self) -> Option<Bounds<Pixels>> {
+        self.menu_drawn.get()
+    }
+
+    /// The open menu as an element floating by the trigger. Nothing
     /// when the menu is closed or its block is not drawn.
-    pub(crate) fn render_menu(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+    pub(crate) fn render_menu(
+        &self,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        self.menu_drawn.set(None);
+        let drawn = self.menu_drawn.clone();
         let menu = self.state.read(cx).insert_menu()?.clone();
-        let under = {
+        let (over, under) = {
             let frame = self.frame.borrow();
             let leaf = frame.leaves.get(&self.keys.borrow().get(menu.from.block)?)?;
             let at = leaf.position_for_caret(Caret::new(menu.from.offset.min(leaf.len())));
-            at + point(ui::px(0.), leaf.caret_height())
+            (at, at + point(ui::px(0.), leaf.caret_height()))
         };
+        // Under the caret when it fits there, above it when it does not.
+        let rows = (menu.entries.len() + 1) as f32;
+        let tall = (window.line_height() + window.rem_size() * ROW_PADDING_REMS) * rows
+            + window.rem_size() * ROW_PADDING_REMS * 2.;
+        let below = under.y + tall <= window.viewport_size().height;
+        let gap = point(ui::px(0.), window.rem_size() * GAP_REMS);
+        let (corner, at) =
+            if below { (Anchor::TopLeft, under + gap) } else { (Anchor::BottomLeft, over - gap) };
         let theme = cx.theme();
         let (active, muted) = (theme.list_active, theme.muted_foreground);
         let rows = menu.entries.iter().enumerate().map(|(index, entry)| {
@@ -131,13 +154,19 @@ impl EditorView {
             .occlude()
             .popover_style(cx)
             .min_w(rems(MENU_REMS))
-            .mt_1()
             .py_1()
             .flex()
             .flex_col()
             .child(div().px_3().py_1().text_xs().text_color(muted).child("Insert"))
-            .children(rows);
-        Some(deferred(anchored().position(under).snap_to_window().child(list)).into_any_element())
+            .children(rows)
+            .child(
+                // Notes where the menu ended up, for tests and for hosts.
+                canvas(move |bounds, _, _| drawn.set(Some(bounds)), |_, _, _, _| {})
+                    .absolute()
+                    .size_full(),
+            );
+        let floating = anchored().anchor(corner).position(at).snap_to_window().child(list);
+        Some(deferred(floating).into_any_element())
     }
 }
 

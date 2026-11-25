@@ -2,6 +2,16 @@
 
 Newest first.
 
+## 2026-11-25: the pointer, word and document keys, a blinking caret
+
+- A double click selects a word (or the gap between words), a triple click the block's text. A click on a to-do's checkbox ticks or unticks it.
+- A drag follows the pointer anywhere in the window. Held above or below the rows it scrolls that way, further the further out the pointer is, and the selection grows with every frame.
+- Option with the arrows on macOS, Control elsewhere, moves and selects by word and crosses into the next block at an edge. Command with Up and Down on macOS, Control with Home and End elsewhere, go to the document's start and end.
+- The caret blinks at the interval the theme gives, and any change to the selection or the text shows it at once. A theme that asks for a steady caret gets one.
+- Movement through the document's own order moved out of the state file into `moves.rs`.
+- The insert menu opens above the caret when there is no room for it below, and the view reports where it was drawn.
+- Checked by hand in a real window on Linux (virtual display, real pointer and key events): ticking a to-do, a double click on a word, the insert menu typed and confirmed at the bottom of the window.
+
 ## 2026-11-25: the insert menu
 
 - Typing `/` at the start of a block of text or after white space opens a menu of block types under the caret. What is typed next filters it (title starts, then keyword starts, then anywhere in the title); Up and Down step through and wrap; Enter or a click applies the choice; Escape, moving the caret away, deleting the trigger or typing past any match closes it.
@@ -38,9 +48,9 @@ Tested in a headless window with real layout and real key dispatch: a document t
 
 1. It has been rendered offscreen with the real renderer on Linux (software Vulkan); the frames are in `docs/images/`, made by the `screenshot` example. The `playground` example opens it in a window; it was run on Linux under a virtual display with software rendering and driven with real pointer and key events (click, type, shortcuts, wheel). On macOS (Intel, macOS 15) every test passes and the `screenshot` example renders its frame with the native renderer; the window itself has not been opened there, and nobody has used it by hand yet.
 2. Only the rows in view are drawn; see the entry above. Each frame still walks the whole document once to list its blocks in order.
-3. The view scrolls, and brings the selection's head into view when it moves. It does not yet scroll while a drag selects past the edge. Up or Down into a block that is not drawn lands at that block's edge, not under the column the caret was in.
+3. The view scrolls, brings the selection's head into view when it moves, and scrolls while a drag selects past the top or bottom. Up or Down into a block that is not drawn lands at that block's edge, not under the column the caret was in.
 4. An empty text block draws a zero-width space so it has a line for the caret. Inline atoms draw as a placeholder character.
-5. A composition is not yet one undo step. The caret does not blink.
+5. A composition is not yet one undo step. The caret's blink timer runs while the editor is not focused, where it only costs a repaint.
 6. Copy, cut and paste work and carry Markdown; there is no typed clipboard payload yet. The insert menu works; it is not grouped and does not scroll, which a longer list of block types will need. No block handles, toolbar or drag and drop.
 7. Home and End move to the edges of the visual line. At a wrapped line's end the caret rests one character short of the wrap.
 

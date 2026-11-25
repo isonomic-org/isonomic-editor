@@ -26,6 +26,7 @@ pub use error::ModelError;
 pub use ids::{BlockId, ColumnId, IdSource, RowId, SeqIds};
 pub use inline::{
     ATOM_CHAR, Atom, InlineText, Run, next_grapheme, next_word, prev_grapheme, prev_word,
+    word_range,
 };
 pub use limits::Limits;
 pub use marks::{Mark, MarkKind, Marks};

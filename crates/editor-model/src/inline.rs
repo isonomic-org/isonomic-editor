@@ -280,3 +280,21 @@ pub fn next_word(text: &str, offset: usize) -> usize {
         .find(|end| *end > offset)
         .unwrap_or(text.len())
 }
+
+/// The word that contains `offset` or ends at it, or else the run of
+/// white space and punctuation between words there.
+pub fn word_range(text: &str, offset: usize) -> Range<usize> {
+    let offset = offset.min(text.len());
+    let mut after_last = 0;
+    for (start, word) in text.unicode_word_indices() {
+        let end = start + word.len();
+        if offset < start {
+            return after_last..start;
+        }
+        if offset <= end {
+            return start..end;
+        }
+        after_last = end;
+    }
+    after_last..text.len()
+}

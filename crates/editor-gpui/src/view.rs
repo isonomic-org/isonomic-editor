@@ -18,6 +18,7 @@ use ui::{
 };
 
 use crate::actions::*;
+use crate::blink::Blink;
 use crate::rows::{Drawn, Rows, SharedKeys};
 use crate::state::EditorState;
 use crate::surface::{Head, SharedFrame, Surface};
@@ -38,6 +39,12 @@ pub struct EditorView {
     /// A stable number per block: its leaf key and its element ID.
     pub(crate) keys: SharedKeys,
     pub(crate) dragging: bool,
+    /// Where the pointer is while a drag holds it past the top or the
+    /// bottom, which scrolls a little more each frame.
+    pub(crate) drag_past: Option<Point<Pixels>>,
+    pub(crate) blink: Blink,
+    /// Where the insert menu was last drawn.
+    pub(crate) menu_drawn: Rc<Cell<Option<Bounds<Pixels>>>>,
     /// The rows: every block in document order, of which the list
     /// draws the ones in view.
     pub(crate) list: ListState,
@@ -55,13 +62,20 @@ pub struct EditorView {
 
 impl EditorView {
     pub fn new(state: Entity<EditorState>, cx: &mut Context<Self>) -> Self {
-        let observe = cx.observe(&state, |_, _, cx| cx.notify());
+        let observe = cx.observe(&state, |this, _, cx| {
+            // Any change shows the caret and starts its blink over.
+            this.restart_blink(cx);
+            cx.notify();
+        });
         Self {
             state,
             focus: cx.focus_handle(),
             frame: SharedFrame::default(),
             keys: SharedKeys::default(),
             dragging: false,
+            drag_past: None,
+            blink: Blink::default(),
+            menu_drawn: Rc::default(),
             list: ListState::new(0, ListAlignment::Top, px(OVERDRAW)),
             listed: Rc::default(),
             drawn: Drawn::default(),
@@ -182,7 +196,8 @@ impl Focusable for EditorView {
 }
 
 impl Render for EditorView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.drag_past_edge(window, cx);
         let (doc, selection) = {
             let state = self.state.read(cx);
             (state.snapshot(), state.selection().clone())
@@ -226,6 +241,7 @@ impl Render for EditorView {
             frame: self.frame.clone(),
             drawn: self.drawn.clone(),
             head,
+            caret_shown: self.blink.shown(),
             caret_color,
             focus: self.focus.clone(),
             view: cx.entity(),
@@ -299,6 +315,30 @@ impl Render for EditorView {
             .on_action(
                 cx.listener(|this, _: &SelectToEnd, _, cx| this.move_to_line_edge(true, true, cx)),
             )
+            .on_action(cx.listener(|this, _: &MoveWordLeft, _, cx| {
+                this.edit(cx, |s, cx| s.move_by_word(false, false, cx))
+            }))
+            .on_action(cx.listener(|this, _: &MoveWordRight, _, cx| {
+                this.edit(cx, |s, cx| s.move_by_word(true, false, cx))
+            }))
+            .on_action(cx.listener(|this, _: &SelectWordLeft, _, cx| {
+                this.edit(cx, |s, cx| s.move_by_word(false, true, cx))
+            }))
+            .on_action(cx.listener(|this, _: &SelectWordRight, _, cx| {
+                this.edit(cx, |s, cx| s.move_by_word(true, true, cx))
+            }))
+            .on_action(cx.listener(|this, _: &MoveToDocumentStart, _, cx| {
+                this.edit(cx, |s, cx| s.move_to_document_edge(false, false, cx))
+            }))
+            .on_action(cx.listener(|this, _: &MoveToDocumentEnd, _, cx| {
+                this.edit(cx, |s, cx| s.move_to_document_edge(true, false, cx))
+            }))
+            .on_action(cx.listener(|this, _: &SelectToDocumentStart, _, cx| {
+                this.edit(cx, |s, cx| s.move_to_document_edge(false, true, cx))
+            }))
+            .on_action(cx.listener(|this, _: &SelectToDocumentEnd, _, cx| {
+                this.edit(cx, |s, cx| s.move_to_document_edge(true, true, cx))
+            }))
             .on_action(cx.listener(|this, _: &MoveUp, _, cx| this.move_or_step_menu(false, cx)))
             .on_action(cx.listener(|this, _: &MoveDown, _, cx| this.move_or_step_menu(true, cx)))
             .on_action(
@@ -338,10 +378,8 @@ impl Render for EditorView {
                 }
             }))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::mouse_down))
-            .on_mouse_move(cx.listener(Self::mouse_move))
-            .on_mouse_up(MouseButton::Left, cx.listener(|this, _, _, _| this.dragging = false))
             .child(surface)
-            .children(self.render_menu(cx))
+            .children(self.render_menu(window, cx))
             .child(
                 div()
                     .absolute()

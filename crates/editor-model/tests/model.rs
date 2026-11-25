@@ -64,6 +64,15 @@ fn boundaries_respect_graphemes_and_words() {
     assert_eq!(prev_word("alpha beta", 10), 6);
     assert_eq!(next_word("alpha beta", 0), 5);
     assert!(!InlineText::plain(text).is_boundary(2));
+    // A word, the gap between words, and the edges.
+    let line = "  alpha, beta  ";
+    assert_eq!(word_range(line, 4), 2..7);
+    assert_eq!(word_range(line, 7), 2..7, "at a word's end, that word");
+    assert_eq!(word_range(line, 8), 7..9, "between words, what separates them");
+    assert_eq!(word_range(line, 0), 0..2);
+    assert_eq!(word_range(line, 14), 13..15);
+    assert_eq!(word_range(line, 999), 13..15);
+    assert_eq!(word_range("", 3), 0..0);
 }
 
 #[test]
