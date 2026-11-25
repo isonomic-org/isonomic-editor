@@ -4,7 +4,7 @@
 //! Renders the editor offscreen with the real renderer and saves a
 //! PNG. Needs a GPU or a software Vulkan driver.
 //!
-//! `cargo run -p editor-gpui --example screenshot -- editor.png [caret]`
+//! `cargo run -p editor-gpui --example screenshot -- editor.png [caret|menu]`
 
 extern crate ui as gpui;
 
@@ -40,7 +40,8 @@ impl Render for Host {
 
 fn main() -> ExitCode {
     let out = std::env::args().nth(1).unwrap_or_else(|| "editor.png".to_owned());
-    let caret = std::env::args().nth(2).is_some();
+    let mode = std::env::args().nth(2).unwrap_or_default();
+    let (caret, menu) = (mode == "caret", mode == "menu");
     let mut cx = HeadlessAppContext::with_platform(
         ui::platform::current_platform(true).text_system(),
         Arc::new(Assets),
@@ -59,6 +60,7 @@ fn main() -> ExitCode {
         show: false,
         ..Default::default()
     };
+    let mut made = None;
     let opened = cx.update(|cx| {
         ui::open_window(options, cx, |window, cx| {
             let state = cx.new(|cx| EditorState::from_markdown(TOUR, 1, cx));
@@ -66,11 +68,15 @@ fn main() -> ExitCode {
             // selection as well as text; or place a caret in it.
             state.update(cx, |state, cx| {
                 if let Some(id) = state.snapshot().flat().get(1).copied() {
-                    let selection =
-                        if caret { Selection::caret(id, 28) } else { Selection::range(id, 14, 28) };
+                    let selection = if caret || menu {
+                        Selection::caret(id, 28)
+                    } else {
+                        Selection::range(id, 14, 28)
+                    };
                     state.select(selection, cx);
                 }
             });
+            made = Some(state.clone());
             let editor = cx.new(|cx| EditorView::new(state, cx));
             let focus = editor.read(cx).focus_handle(cx);
             window.focus(&focus, cx);
@@ -82,6 +88,20 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     };
     let _ = cx.update_window(handle, |_, window, cx| window.render_frame(cx));
+    if menu {
+        // The menu hangs from where the last frame drew the caret, so
+        // it needs that frame first.
+        let _ = cx.update_window(handle, |_, window, cx| {
+            if let Some(state) = &made {
+                state.update(cx, |state, cx| {
+                    state.insert_text(" /", cx);
+                    state.insert_text("h", cx);
+                    state.step_menu(true, cx);
+                });
+            }
+            window.render_frame(cx);
+        });
+    }
     match cx.capture_screenshot(handle) {
         Ok(image) => match image.save(&out) {
             Ok(()) => {

@@ -237,3 +237,99 @@ fn the_insert_menu_finds_and_inserts_blocks() {
     s.type_text("after");
     assert_eq!(s.markdown(), "text\n\n---\n\nafter\n");
 }
+
+#[test]
+fn the_insert_menu_follows_what_is_typed_and_applies_a_choice() {
+    use editor_blocks::{search_menu, standard};
+    let specs = standard();
+    let mut s = Session::new(1);
+    s.type_text("Notes /");
+    let doc = s.doc();
+    let from = cmd::menu_trigger(&doc, &s.selection).expect("a trigger after a space opens it");
+    assert_eq!(from.offset, 6);
+
+    s.type_text("hea");
+    let doc = s.doc();
+    let query = cmd::menu_query(&doc, &s.selection, from).unwrap();
+    assert_eq!(query, "hea");
+    let entries = search_menu(&specs, &query);
+    let titles: Vec<_> = entries.iter().map(|entry| entry.title).collect();
+    assert_eq!(titles, ["Heading 1", "Heading 2", "Heading 3"]);
+
+    // Choosing removes the trigger and query and converts the block,
+    // in one step that one undo takes back.
+    let second = &entries[1];
+    let tx =
+        cmd::choose_menu_entry(&doc, &s.selection, from, second.kind, &second.props, s.store.ids());
+    assert!(s.run(tx));
+    assert_eq!(s.markdown(), "## Notes\n");
+    assert_eq!(s.doc().get(from.block).unwrap().content.text(), "Notes ");
+    assert_eq!(s.selection, Selection::caret(from.block, 6));
+    assert!(s.undo());
+    assert_eq!(s.markdown(), "Notes /hea\n");
+}
+
+#[test]
+fn the_insert_menu_opens_only_where_it_should() {
+    let mut s = Session::new(1);
+    s.type_text("a/");
+    assert_eq!(cmd::menu_trigger(&s.doc(), &s.selection), None, "not in the middle of a word");
+    s.type_text(" /");
+    let from = cmd::menu_trigger(&s.doc(), &s.selection).unwrap();
+
+    // It closes when the caret leaves the query or the trigger goes.
+    let before = Selection::caret(from.block, from.offset);
+    assert_eq!(cmd::menu_query(&s.doc(), &before, from), None);
+    let range = Selection::range(from.block, 0, 2);
+    assert_eq!(cmd::menu_query(&s.doc(), &range, from), None);
+    assert_eq!(cmd::menu_query(&s.doc(), &s.selection, from), Some(String::new()));
+    s.backspace();
+    assert_eq!(cmd::menu_query(&s.doc(), &s.selection, from), None);
+
+    // Positions that do not exist are answered, not trusted.
+    let nowhere = Position::new(from.block, 999);
+    assert_eq!(cmd::menu_query(&s.doc(), &s.selection, nowhere), None);
+    let inside = {
+        s.type_text("é/x");
+        // Offset 4 is inside the two-byte character.
+        Position::new(from.block, 4)
+    };
+    assert_eq!(cmd::menu_query(&s.doc(), &s.selection, inside), None);
+
+    // Code holds plain text: no menu there.
+    let mut code = Session::new(2);
+    code.type_text("```");
+    code.type_text("/");
+    assert_eq!(cmd::menu_trigger(&code.doc(), &code.selection), None);
+}
+
+#[test]
+fn a_divider_from_the_menu_replaces_an_empty_block_or_follows_a_full_one() {
+    let mut s = Session::new(1);
+    s.type_text("/div");
+    let from = Position::new(s.selection.head().unwrap().block, 0);
+    let tx = cmd::choose_menu_entry(
+        &s.doc(),
+        &s.selection,
+        from,
+        kinds::DIVIDER,
+        &Props::new(),
+        s.store.ids(),
+    );
+    assert!(s.run(tx));
+    assert_eq!(s.markdown(), "---\n");
+    s.type_text("after /");
+    let block = s.selection.head().unwrap().block;
+    let from = Position::new(block, 6);
+    let tx = cmd::choose_menu_entry(
+        &s.doc(),
+        &s.selection,
+        from,
+        kinds::DIVIDER,
+        &Props::new(),
+        s.store.ids(),
+    );
+    assert!(s.run(tx));
+    assert_eq!(s.markdown(), "---\n\nafter \n\n---\n");
+    assert_eq!(s.selection, Selection::caret(block, 6), "the caret stays in the text");
+}

@@ -255,7 +255,15 @@ impl Render for EditorView {
                     this.edit(cx, |s, cx| s.delete(true, cx))
                 }),
             )
-            .on_action(cx.listener(|this, _: &Newline, _, cx| this.edit(cx, |s, cx| s.newline(cx))))
+            .on_action(cx.listener(|this, _: &Newline, _, cx| {
+                this.edit(cx, |s, cx| match s.insert_menu() {
+                    Some(_) => s.choose_menu_entry(None, cx),
+                    None => s.newline(cx),
+                })
+            }))
+            .on_action(
+                cx.listener(|this, _: &Cancel, _, cx| this.edit(cx, |s, cx| s.close_menu(cx))),
+            )
             .on_action(cx.listener(|this, _: &Indent, _, cx| this.edit(cx, |s, cx| s.indent(cx))))
             .on_action(cx.listener(|this, _: &Outdent, _, cx| this.edit(cx, |s, cx| s.outdent(cx))))
             .on_action(cx.listener(|this, _: &Undo, _, cx| this.edit(cx, |s, cx| s.undo(cx))))
@@ -291,12 +299,8 @@ impl Render for EditorView {
             .on_action(
                 cx.listener(|this, _: &SelectToEnd, _, cx| this.move_to_line_edge(true, true, cx)),
             )
-            .on_action(
-                cx.listener(|this, _: &MoveUp, _, cx| this.move_vertically(false, false, cx)),
-            )
-            .on_action(
-                cx.listener(|this, _: &MoveDown, _, cx| this.move_vertically(true, false, cx)),
-            )
+            .on_action(cx.listener(|this, _: &MoveUp, _, cx| this.move_or_step_menu(false, cx)))
+            .on_action(cx.listener(|this, _: &MoveDown, _, cx| this.move_or_step_menu(true, cx)))
             .on_action(
                 cx.listener(|this, _: &SelectUp, _, cx| this.move_vertically(false, true, cx)),
             )
@@ -337,6 +341,7 @@ impl Render for EditorView {
             .on_mouse_move(cx.listener(Self::mouse_move))
             .on_mouse_up(MouseButton::Left, cx.listener(|this, _, _, _| this.dragging = false))
             .child(surface)
+            .children(self.render_menu(cx))
             .child(
                 div()
                     .absolute()
@@ -350,6 +355,15 @@ impl Render for EditorView {
 }
 
 impl EditorView {
+    /// Up and Down step through the insert menu while it is open.
+    fn move_or_step_menu(&mut self, down: bool, cx: &mut Context<Self>) {
+        if self.state.read(cx).insert_menu().is_some() {
+            self.state.update(cx, |state, cx| state.step_menu(down, cx));
+        } else {
+            self.move_vertically(down, false, cx);
+        }
+    }
+
     fn edit(
         &mut self,
         cx: &mut Context<Self>,

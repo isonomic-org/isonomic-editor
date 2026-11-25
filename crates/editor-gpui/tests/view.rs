@@ -314,3 +314,61 @@ fn home_and_end_stop_at_the_visual_line(cx: &mut TestAppContext) {
     keys(cx, "shift-end");
     assert_eq!(selection(&view, cx), Selection::range(id, second_start, second_end));
 }
+
+#[ui::test]
+fn the_insert_menu_opens_filters_and_converts(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, "");
+    let menu = |view: &Entity<EditorView>, cx: &mut VisualTestContext| {
+        view.read_with(cx, |view, cx| {
+            let menu = view.state().read(cx).insert_menu().cloned()?;
+            Some((menu.entries.iter().map(|entry| entry.title).collect::<Vec<_>>(), menu.selected))
+        })
+    };
+    type_text(cx, "/");
+    let (all, selected) = menu(&view, cx).unwrap();
+    assert!(all.len() >= 8 && selected == 0, "every block type is offered: {all:?}");
+
+    // Typing narrows it; Down and Up step through and wrap around.
+    type_text(cx, "h");
+    type_text(cx, "e");
+    assert_eq!(menu(&view, cx).unwrap().0, ["Heading 1", "Heading 2", "Heading 3"]);
+    keys(cx, "down down down up");
+    assert_eq!(menu(&view, cx).unwrap().1, 2);
+    let before = selection(&view, cx);
+    assert_eq!(before.head().unwrap().offset, 3, "the arrows moved the menu, not the caret");
+
+    // Enter applies the choice instead of splitting the block.
+    keys(cx, "enter");
+    assert_eq!(menu(&view, cx), None);
+    type_text(cx, "Title");
+    assert_eq!(markdown(&view, cx), "### Title\n");
+    assert_eq!(blocks(&view, cx).len(), 1);
+
+    // Escape closes it and leaves the text; so does typing past any match.
+    keys(cx, "enter");
+    type_text(cx, "/");
+    assert!(menu(&view, cx).is_some());
+    keys(cx, "escape");
+    assert_eq!(menu(&view, cx), None);
+    type_text(cx, "q");
+    assert_eq!(menu(&view, cx), None, "it stays closed once dismissed");
+    keys(cx, "backspace backspace");
+    type_text(cx, "/");
+    type_text(cx, "z");
+    type_text(cx, "z");
+    assert_eq!(menu(&view, cx), None, "nothing matches, so it closes");
+    assert!(markdown(&view, cx).ends_with("/zz\n"));
+
+    // A click on an entry chooses it.
+    keys(cx, "backspace backspace backspace");
+    type_text(cx, "/");
+    type_text(cx, "quo");
+    settle(cx);
+    let head = selection(&view, cx).head().unwrap();
+    let caret = view.read_with(cx, |view, _| view.caret_point(head)).unwrap();
+    cx.simulate_click(caret + point(px(20.), px(70.)), Modifiers::none());
+    settle(cx);
+    assert_eq!(menu(&view, cx), None);
+    type_text(cx, "said");
+    assert!(markdown(&view, cx).ends_with("> said\n"), "{}", markdown(&view, cx));
+}

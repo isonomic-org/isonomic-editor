@@ -16,6 +16,7 @@ extern crate ui as gpui;
 
 mod actions;
 mod input;
+mod menu;
 mod motion;
 mod nodes;
 mod rows;
@@ -25,6 +26,7 @@ mod units;
 mod view;
 
 pub use actions::*;
+pub use menu::InsertMenu;
 pub use state::{EditorEvent, EditorState};
 pub use view::EditorView;
 
