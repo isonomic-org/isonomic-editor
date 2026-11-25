@@ -13,7 +13,7 @@ use editor_model::{BlockId, Document, kinds};
 use ui::base::text::editor_host::{FlowPosition, RenderContext};
 use ui::{AnyElement, App, Hsla, IntoElement as _, ParentElement as _, Styled as _, Window, div};
 
-use crate::nodes::node_for;
+use crate::nodes::{PLACEHOLDER, node_for};
 
 /// How far each level of nesting is indented, in rems.
 const INDENT_REMS: f32 = 1.5;
@@ -50,6 +50,10 @@ pub struct Rows {
     pub order: Rc<Vec<BlockId>>,
     pub keys: SharedKeys,
     pub highlight: Hsla,
+    /// The color of a hint in an empty block.
+    pub muted: Hsla,
+    /// The block the caret is in, when the selection is a caret.
+    pub caret_in: Option<BlockId>,
     pub drawn: Drawn,
     /// Places in runs of numbered items, worked out once per frame.
     pub numbers: RefCell<HashMap<BlockId, u32>>,
@@ -95,20 +99,28 @@ impl Rows {
         let Some((id, block)) = block else { return div().into_any_element() };
         let key = self.keys.borrow_mut().of(id);
         self.drawn.borrow_mut().insert(ix, (key, id));
-        let node = node_for(&self.doc, block, key, self.number(id), self.highlight);
+        // An empty paragraph with the caret in it says what can be typed.
+        let hint = (self.caret_in == Some(id)
+            && block.kind.is(kinds::PARAGRAPH)
+            && block.content.is_empty())
+        .then_some(PLACEHOLDER);
+        let node = node_for(&self.doc, block, key, self.number(id), self.highlight, hint);
         // Spacing depends on what comes before, so build that too.
         let before = ix
             .checked_sub(1)
             .and_then(|at| self.order.get(at))
             .and_then(|id| self.doc.get(*id))
-            .map(|block| node_for(&self.doc, block, 0, 0, self.highlight));
+            .map(|block| node_for(&self.doc, block, 0, 0, self.highlight, None));
         let last = ix + 1 == self.order.len();
         let flow = match &before {
             Some(before) => FlowPosition::at(&[before, &node], 1, last),
             None => FlowPosition::at(&[&node], 0, last),
         };
         let depth = self.doc.depth(id).saturating_sub(1);
-        let rcx = RenderContext::from_app(cx);
+        let mut rcx = RenderContext::from_app(cx);
+        if let Some(hint) = hint {
+            rcx = rcx.with_foreground_ranges(key, vec![(0..hint.len(), self.muted)]);
+        }
         div()
             .pl(window.rem_size() * INDENT_REMS * depth as f32)
             .child(node.render_with_id(("editor-block", key as usize), flow, &rcx, window, cx))

@@ -231,6 +231,8 @@ impl Render for EditorView {
             order,
             keys: self.keys.clone(),
             highlight: selection_color,
+            muted: cx.theme().muted_foreground,
+            caret_in: selection.head().filter(|_| selection.is_caret()).map(|head| head.block),
             drawn: self.drawn.clone(),
             numbers: Default::default(),
         };

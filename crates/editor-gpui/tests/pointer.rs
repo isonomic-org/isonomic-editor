@@ -139,3 +139,17 @@ fn the_caret_blinks_and_any_change_shows_it_again(cx: &mut TestAppContext) {
     keys(cx, "right");
     assert!(shown(&view, cx), "moving the caret shows it at once");
 }
+
+#[ui::test]
+fn a_click_past_the_end_of_a_line_lands_at_its_end(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, "plain text\n\n1. numbered\n\n> quoted\n\n# Title\n");
+    let ids = blocks(&view, cx);
+    for (index, length) in [(0, 10), (1, 8), (2, 6), (3, 5)] {
+        let end = caret(&view, cx, Position::new(ids[index], length));
+        press(cx, end + point(px(200.), px(6.)), 1);
+        assert_eq!(selection(&view, cx), Selection::caret(ids[index], length), "block {index}");
+        let start = caret(&view, cx, Position::new(ids[index], 0));
+        press(cx, point(px(1.), start.y + px(6.)), 1);
+        assert_eq!(selection(&view, cx), Selection::caret(ids[index], 0), "block {index}");
+    }
+}

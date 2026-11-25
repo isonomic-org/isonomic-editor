@@ -13,10 +13,14 @@ use ui::{Hsla, SharedString};
 /// caret on. Zero width; not part of the document.
 pub const EMPTY: &str = "\u{200B}";
 
-fn paragraph(text: &InlineText, key: u64, highlight: Hsla) -> Paragraph {
+/// What an empty paragraph says while the caret is in it. Not part of
+/// the document.
+pub const PLACEHOLDER: &str = "Type / to insert a block";
+
+fn paragraph(text: &InlineText, key: u64, highlight: Hsla, hint: Option<&str>) -> Paragraph {
     let mut out = Paragraph::default();
     if text.is_empty() {
-        out.push(InlineNode::new(EMPTY));
+        out.push(InlineNode::new(hint.unwrap_or(EMPTY).to_owned()));
         return out.with_leaf_key(key);
     }
     let marks = text
@@ -49,20 +53,21 @@ fn int(block: &Block, key: &str) -> Option<i64> {
 }
 
 /// The node that draws one block. `number` is the block's place in a
-/// run of numbered items. Blocks of unknown types draw as text.
+/// run of numbered items; `hint` is what to show if it is empty. Blocks of unknown types draw as text.
 pub fn node_for(
     doc: &Document,
     block: &Block,
     key: u64,
     number: u32,
     highlight: Hsla,
+    hint: Option<&str>,
 ) -> BlockNode {
     let text = match &block.content {
         Content::Inline(text) => text.clone(),
         Content::Plain(text) => InlineText::plain(text),
         Content::None => InlineText::new(),
     };
-    let leaf = || BlockNode::Paragraph(paragraph(&text, key, highlight));
+    let leaf = || BlockNode::Paragraph(paragraph(&text, key, highlight, hint));
     let item = |ordered: bool, checked: Option<bool>| BlockNode::List {
         children: vec![BlockNode::ListItem {
             children: vec![leaf()],
@@ -81,7 +86,7 @@ pub fn node_for(
     match block.kind.as_str() {
         kinds::HEADING => BlockNode::Heading {
             level: int(block, "level").unwrap_or(1).clamp(1, 3) as u8,
-            children: paragraph(&text, key, highlight),
+            children: paragraph(&text, key, highlight, None),
             span: None,
         },
         kinds::BULLETED => item(false, None),
