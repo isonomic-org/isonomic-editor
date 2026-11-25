@@ -9,10 +9,10 @@ use editor_model::{BlockId, Document, MarkKind, Position, Selection, kinds};
 use ui::base::text::editor_host::{BlockNode, Caret, FlowPosition, RenderContext};
 use ui::component::ActiveTheme as _;
 use ui::{
-    AnyElement, App, Bounds, Context, Entity, EntityInputHandler, FocusHandle, Focusable, Hsla,
-    InteractiveElement as _, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent,
-    ParentElement as _, Pixels, Point, Render, Styled as _, Subscription, UTF16Selection, Window,
-    div, point, px, size,
+    AnyElement, App, Bounds, ClipboardItem, Context, Entity, EntityInputHandler, FocusHandle,
+    Focusable, Hsla, InteractiveElement as _, IntoElement, MouseButton, MouseDownEvent,
+    MouseMoveEvent, ParentElement as _, Pixels, Point, Render, Styled as _, Subscription,
+    UTF16Selection, Window, div, point, px, size,
 };
 
 use crate::actions::*;
@@ -377,6 +377,21 @@ impl Render for EditorView {
             }))
             .on_action(cx.listener(|this, _: &ToggleCode, _, cx| {
                 this.edit(cx, |s, cx| s.toggle_mark(MarkKind::Code, cx))
+            }))
+            .on_action(cx.listener(|this, _: &Copy, _, cx| {
+                if let Some(text) = this.state.read(cx).copy() {
+                    cx.write_to_clipboard(ClipboardItem::new_string(text));
+                }
+            }))
+            .on_action(cx.listener(|this, _: &Cut, _, cx| {
+                if let Some(text) = this.state.update(cx, |state, cx| state.cut(cx)) {
+                    cx.write_to_clipboard(ClipboardItem::new_string(text));
+                }
+            }))
+            .on_action(cx.listener(|this, _: &Paste, _, cx| {
+                if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {
+                    this.state.update(cx, |state, cx| state.paste(&text, cx));
+                }
             }))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::mouse_down))
             .on_mouse_move(cx.listener(Self::mouse_move))

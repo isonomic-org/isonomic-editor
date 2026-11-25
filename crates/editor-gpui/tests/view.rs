@@ -178,3 +178,34 @@ fn platform_text_input_composes_in_place(cx: &mut TestAppContext) {
     assert_eq!(markdown(&view, cx), "a日本b\n");
     assert_eq!(selection(&view, cx), Selection::caret(id, 7));
 }
+
+#[ui::test]
+fn copy_cut_and_paste_carry_formatting(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, "one **two** three\n\n- item\n  - nested\n\nlast\n");
+    let ids = blocks(&view, cx);
+    let select = |view: &Entity<EditorView>, cx: &mut VisualTestContext, selection: Selection| {
+        view.update(cx, |view, cx| {
+            view.state().update(cx, |state, cx| state.select(selection, cx))
+        });
+    };
+    // Part of one block travels as marked text.
+    select(&view, cx, Selection::range(ids[0], 4, 13));
+    keys(cx, "secondary-c");
+    select(&view, cx, Selection::caret(ids[3], 4));
+    keys(cx, "secondary-v");
+    assert!(markdown(&view, cx).ends_with("last**two** three\n"));
+    keys(cx, "secondary-z");
+    // Whole blocks travel with their type and nesting.
+    let across =
+        Selection::Text { anchor: Position::new(ids[1], 0), head: Position::new(ids[2], 6) };
+    select(&view, cx, across);
+    keys(cx, "secondary-x");
+    assert_eq!(markdown(&view, cx), "one **two** three\n\n- \n\nlast\n");
+    keys(cx, "secondary-z");
+    select(&view, cx, Selection::caret(ids[3], 4));
+    keys(cx, "secondary-v");
+    assert_eq!(
+        markdown(&view, cx),
+        "one **two** three\n\n- item\n  - nested\n\nlast\n\n- item\n  - nested\n"
+    );
+}

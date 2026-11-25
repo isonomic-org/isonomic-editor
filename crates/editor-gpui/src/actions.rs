@@ -36,6 +36,9 @@ ui::actions!(
         ToggleUnderline,
         ToggleStrike,
         ToggleCode,
+        Copy,
+        Cut,
+        Paste,
     ]
 );
 
@@ -85,5 +88,8 @@ pub(crate) fn bind_keys(cx: &mut App) {
         KeyBinding::new(secondary!("u"), ToggleUnderline, context),
         KeyBinding::new(secondary!("shift-x"), ToggleStrike, context),
         KeyBinding::new(secondary!("e"), ToggleCode, context),
+        KeyBinding::new(secondary!("c"), Copy, context),
+        KeyBinding::new(secondary!("x"), Cut, context),
+        KeyBinding::new(secondary!("v"), Paste, context),
     ]);
 }
