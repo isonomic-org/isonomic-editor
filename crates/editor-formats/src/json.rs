@@ -66,8 +66,7 @@ fn mark_json((start, end, mark): (usize, usize, Mark)) -> Value {
     out
 }
 
-/// One block and everything under it.
-pub fn block_to_json(doc: &Document, block: &Block) -> Value {
+fn block_value(doc: &Document, block: &Block) -> Value {
     let content = match &block.content {
         Content::Inline(inline) => inline_json(inline),
         Content::Plain(text) => json!({ "text": text }),
@@ -77,7 +76,7 @@ pub fn block_to_json(doc: &Document, block: &Block) -> Value {
         .children
         .iter()
         .filter_map(|id| doc.get(*id))
-        .map(|child| block_to_json(doc, child))
+        .map(|child| block_value(doc, child))
         .collect();
     json!({
         "id": block.id.to_string(),
@@ -89,14 +88,35 @@ pub fn block_to_json(doc: &Document, block: &Block) -> Value {
     })
 }
 
+/// Rebuilds every object with its keys in sorted order. Canonical
+/// output must not depend on how the JSON library happens to be
+/// configured by some other crate in the build.
+fn sorted(value: Value) -> Value {
+    match value {
+        Value::Object(map) => {
+            let mut entries: Vec<(String, Value)> = map.into_iter().collect();
+            entries.sort_by(|a, b| a.0.cmp(&b.0));
+            Value::Object(entries.into_iter().map(|(key, value)| (key, sorted(value))).collect())
+        }
+        Value::Array(items) => Value::Array(items.into_iter().map(sorted).collect()),
+        other => other,
+    }
+}
+
+/// One block and everything under it, in canonical form.
+pub fn block_to_json(doc: &Document, block: &Block) -> Value {
+    sorted(block_value(doc, block))
+}
+
+/// The canonical form: object keys sorted, arrays in document order.
 pub fn to_json(doc: &Document) -> Value {
     let blocks: Vec<Value> = doc
         .root()
         .iter()
         .filter_map(|id| doc.get(*id))
-        .map(|block| block_to_json(doc, block))
+        .map(|block| block_value(doc, block))
         .collect();
-    json!({ "format": FORMAT, "blocks": blocks })
+    sorted(json!({ "format": FORMAT, "blocks": blocks }))
 }
 
 pub fn to_json_string(doc: &Document) -> String {
