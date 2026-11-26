@@ -434,6 +434,7 @@ impl Render for EditorView {
                     .w(Scrollbar::width())
                     .child(Scrollbar::vertical(&self.list).viewport_from_layout()),
             );
+        let editor = self.block_actions(editor, cx);
         // The search bar sits beside the text, not inside it, so that
         // keys typed in it are not also the editor's.
         let bar = match self.link_bar(cx) {

@@ -408,3 +408,42 @@ fn an_empty_paragraph_with_the_caret_shows_a_hint(cx: &mut TestAppContext) {
     assert!(with > without + px(40.), "the hint only with the caret: {without:?} then {with:?}");
     assert_eq!(markdown(&view, cx), "a\n");
 }
+
+#[ui::test]
+fn keys_move_blocks_and_turn_them_into_other_types(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, "First\n\nSecond\n\n- item\n  - nested\n\nLast\n");
+    let word = if cfg!(target_os = "macos") { "cmd-alt" } else { "ctrl-alt" };
+    let turn = |cx: &mut VisualTestContext, digit: u8| keys(cx, &format!("{word}-{digit}"));
+
+    // The block the caret is in moves among its siblings and stops at
+    // the ends; what is nested in a block goes with it.
+    keys(cx, "document-start alt-shift-down");
+    assert_eq!(markdown(&view, cx), "Second\n\nFirst\n\n- item\n  - nested\n\nLast\n");
+    keys(cx, "alt-shift-up alt-shift-up");
+    assert_eq!(markdown(&view, cx), "First\n\nSecond\n\n- item\n  - nested\n\nLast\n");
+    keys(cx, "down down alt-shift-down");
+    assert_eq!(markdown(&view, cx), "First\n\nSecond\n\nLast\n\n- item\n  - nested\n");
+    keys(cx, "secondary-z");
+    assert_eq!(markdown(&view, cx), "First\n\nSecond\n\n- item\n  - nested\n\nLast\n");
+
+    // A block becomes another type and keeps its text and the caret.
+    keys(cx, "document-start");
+    turn(cx, 2);
+    assert!(markdown(&view, cx).starts_with("## First\n"));
+    turn(cx, 1);
+    assert!(markdown(&view, cx).starts_with("# First\n"));
+    turn(cx, 4);
+    assert!(markdown(&view, cx).starts_with("- [ ] First\n"));
+    turn(cx, 5);
+    assert!(markdown(&view, cx).starts_with("- First\n"));
+    turn(cx, 6);
+    assert!(markdown(&view, cx).starts_with("1. First\n"));
+    turn(cx, 7);
+    assert!(markdown(&view, cx).starts_with("> First\n"));
+    turn(cx, 8);
+    assert!(markdown(&view, cx).starts_with("```\nFirst\n```\n"));
+    turn(cx, 0);
+    assert!(markdown(&view, cx).starts_with("First\n\nSecond\n"));
+    type_text(cx, "The ");
+    assert!(markdown(&view, cx).starts_with("The First\n"));
+}

@@ -2,6 +2,11 @@
 
 Newest first.
 
+## 2026-11-26: keys for whole blocks
+
+- Option-Shift-Up and Option-Shift-Down move the selected blocks, with what is nested in them, among their siblings. Command-Option-0 to 8 turn them into text, a heading of level 1 to 3, a to-do, a bulleted or numbered item, a quote or code (`docs/keys.md`). The commands were already in the headless half; the view now answers them, as actions a host can also put in a menu.
+- A test moves a block to both ends and a nested list past its neighbor, undoes, and takes one block through every type and back to text with its text and caret kept. Both backends.
+
 ## 2026-11-26: links
 
 - Command-K opens a bar that asks where the selected text should point. With a caret it takes the link the caret is in, showing its address, or else the word under the caret. Enter sets the link, an empty address removes it, Escape leaves things as they were, and the change is one undo step (`docs/keys.md`).
