@@ -51,6 +51,16 @@ Type `/` at the start of a block of text, or after a space. Keep typing to narro
 | Enter, or a click on an entry | Turn the block into that type |
 | Escape | Close the menu and keep what was typed |
 
+## Whole blocks
+
+| Key | What it does |
+|---|---|
+| Option-Shift-Up, Option-Shift-Down (Alt off macOS) | Move the selected blocks, with what is nested in them, up or down among their siblings |
+| Command-Option-0 (Control-Alt off macOS) | Turn the selected blocks into text |
+| Command-Option-1, 2, 3 | Heading 1, 2, 3 |
+| Command-Option-4, 5, 6 | To-do, bulleted item, numbered item |
+| Command-Option-7, 8 | Quote, code |
+
 ## Links
 
 | Key or gesture | What it does |

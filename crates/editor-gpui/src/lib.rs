@@ -16,6 +16,7 @@ extern crate ui as gpui;
 
 mod actions;
 mod blink;
+mod blocks;
 mod find;
 mod input;
 mod link;
