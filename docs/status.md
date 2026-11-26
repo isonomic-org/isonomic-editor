@@ -2,6 +2,24 @@
 
 Newest first.
 
+## 2026-11-26: measured on the Intel Mac
+
+macOS 15.7 on a 2.6 GHz six-core Intel laptop, release build. The machine was busy throughout (load average 7 to 23), so the timings are indicative.
+
+- All 70 tests pass there, on the default backend and on the faster one.
+- `frames`, 10,000 blocks, three runs:
+
+| | time | budget |
+|---|---|---|
+| Typing, one character a frame | 2.74 to 2.77 ms | keystroke to frame under 8 ms at the 95th percentile, at 5,000 blocks |
+| Moving the caret a block a frame | 2.83 to 2.90 ms | |
+| Open saved bytes to the first frame | 245 to 258 ms: 241 to 254 ms reading in the background, 4 ms drawing | under 150 ms, off the main thread |
+| Read the same document from Markdown and save it | 0.87 to 0.89 s | none |
+
+**Typing is inside its budget. Opening is off the drawing thread, which it holds for one 4 ms frame, and is still over its budget: about 250 ms against 150 ms.** This machine reads the saved bytes more slowly than the Linux one (about 250 ms against 180 ms). What would close the gap is unchanged: showing the first screen from the blocks at the top while the rest are read.
+
+**Not measured:** a quiet machine, the renderer's own time, a real display. Nobody has used the playground by hand on the Mac, where find, links and the block keys are new since the last time it was opened there.
+
 ## 2026-11-26: keys for whole blocks
 
 - Option-Shift-Up and Option-Shift-Down move the selected blocks, with what is nested in them, among their siblings. Command-Option-0 to 8 turn them into text, a heading of level 1 to 3, a to-do, a bulleted or numbered item, a quote or code (`docs/keys.md`). The commands were already in the headless half; the view now answers them, as actions a host can also put in a menu.

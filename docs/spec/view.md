@@ -58,7 +58,7 @@ Accessibility in this framework is carried by elements: role, name and state. Ea
 
 ## B16. Performance budgets
 
-Budgets are for the Intel test Mac, release build. The "measured" column is the store alone on a 2-core 2.1 GHz Linux machine; it shows how much of each budget the store uses, not that the budget is met. Two rows have now been measured whole on the Intel Mac, for the editor's share before the renderer (`docs/status.md`): typing is 2.9 ms a frame at 10,000 blocks, inside its budget; opening was first timed there as a Markdown import on the main thread, 0.77 s. Opening saved bytes now reads in the background (`EditorState::load`) and is 185 ms to the first frame on the Linux machine, 8 ms of it on the drawing thread, **which is off the main thread and still over its budget**.
+Budgets are for the Intel test Mac, release build. The "measured" column is the store alone on a 2-core 2.1 GHz Linux machine; it shows how much of each budget the store uses, not that the budget is met. Two rows have now been measured whole on the Intel Mac, for the editor's share before the renderer (`docs/status.md`): typing is 2.9 ms a frame at 10,000 blocks, inside its budget; opening was first timed there as a Markdown import on the main thread, 0.77 s. Opening saved bytes now reads in the background (`EditorState::load`) and is about 250 ms to the first frame on the Intel Mac, 4 ms of it on the drawing thread (185 ms and 8 ms on the Linux machine), **which is off the main thread and still over its budget**.
 
 | Measure | Budget | Store alone, measured |
 |---|---|---|
