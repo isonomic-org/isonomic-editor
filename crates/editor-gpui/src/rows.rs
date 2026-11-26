@@ -117,7 +117,16 @@ impl Rows {
             None => FlowPosition::at(&[&node], 0, last),
         };
         let depth = self.doc.depth(id).saturating_sub(1);
-        let mut rcx = RenderContext::from_app(cx);
+        // Left alone, a click on a link would open whatever it points
+        // at. Here it takes the command modifier, and only web and mail
+        // addresses open.
+        let mut rcx = RenderContext::from_app(cx).on_link_click(|url, event, _, cx| {
+            if event.modifiers().secondary(cx)
+                && let Some(url) = crate::openable(url)
+            {
+                cx.open_url(&url);
+            }
+        });
         if let Some(hint) = hint {
             rcx = rcx.with_foreground_ranges(key, vec![(0..hint.len(), self.muted)]);
         }

@@ -48,6 +48,9 @@ pub struct EditorView {
     pub(crate) menu_drawn: Rc<Cell<Option<Bounds<Pixels>>>>,
     /// The search bar's field, made the first time the bar opens.
     pub(crate) find_input: Option<Entity<InputState>>,
+    /// The link bar's field, and what the bar will link while it is open.
+    pub(crate) link_input: Option<Entity<InputState>>,
+    pub(crate) linking: Option<Selection>,
     /// The rows: every block in document order, of which the list
     /// draws the ones in view.
     pub(crate) list: ListState,
@@ -80,6 +83,8 @@ impl EditorView {
             blink: Blink::default(),
             menu_drawn: Rc::default(),
             find_input: None,
+            link_input: None,
+            linking: None,
             list: ListState::new(0, ListAlignment::Top, px(OVERDRAW)),
             listed: Rc::default(),
             drawn: Drawn::default(),
@@ -311,6 +316,7 @@ impl Render for EditorView {
                 })
             }))
             .on_action(cx.listener(|this, _: &Find, window, cx| this.open_find(window, cx)))
+            .on_action(cx.listener(|this, _: &EditLink, window, cx| this.open_link_bar(window, cx)))
             .on_action(
                 cx.listener(|this, _: &FindNext, _, cx| {
                     this.edit(cx, |s, cx| s.find_next(true, cx))
@@ -430,7 +436,11 @@ impl Render for EditorView {
             );
         // The search bar sits beside the text, not inside it, so that
         // keys typed in it are not also the editor's.
-        div().relative().size_full().child(editor).children(self.find_bar(cx))
+        let bar = match self.link_bar(cx) {
+            Some(bar) => Some(bar.into_any_element()),
+            None => self.find_bar(cx).map(IntoElement::into_any_element),
+        };
+        div().relative().size_full().child(editor).children(bar)
     }
 }
 

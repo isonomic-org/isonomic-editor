@@ -120,6 +120,11 @@ impl EditorView {
             return self.state.update(cx, |state, cx| state.toggle_todo(id, cx));
         }
         let Some(to) = self.position_at(event.position, cx) else { return };
+        // The command modifier with a click opens a link, which the
+        // row's own link handler does; the caret stays where it was.
+        if event.modifiers.secondary(cx) && self.state.read(cx).link_at(to).is_some() {
+            return;
+        }
         let extend = event.modifiers.shift;
         self.state.update(cx, |state, cx| match event.click_count {
             2 => state.select_word_at(to, cx),

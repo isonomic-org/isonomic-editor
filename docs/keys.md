@@ -51,6 +51,15 @@ Type `/` at the start of a block of text, or after a space. Keep typing to narro
 | Enter, or a click on an entry | Turn the block into that type |
 | Escape | Close the menu and keep what was typed |
 
+## Links
+
+| Key or gesture | What it does |
+|---|---|
+| Command-K (Control-K off macOS) | Open the link bar for the selection; for a caret, for the link it is in, else for the word it is in |
+| Enter, in the bar | Point the text at the address typed; an empty address takes the link away |
+| Escape, in the bar | Close the bar and change nothing |
+| Command-click on a link | Open it, if it is a web or mail address. A plain click only places the caret |
+
 ## Find
 
 | Key | What it does |

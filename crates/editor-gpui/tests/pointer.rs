@@ -12,7 +12,7 @@ use common::{blocks, keys, markdown, open, selection, settle};
 use editor_gpui::EditorView;
 use editor_model::{Position, Selection};
 use ui::{
-    Entity, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point,
+    Entity, Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point,
     TestAppContext, VisualTestContext, point, px,
 };
 
@@ -221,4 +221,43 @@ fn any_document_takes_every_key_and_click(cx: &mut TestAppContext) {
         assert!(!ids.is_empty(), "a document always has a block: {document:?}");
         let _ = (markdown(&view, cx), selection(&view, cx));
     }
+}
+
+#[ui::test]
+fn the_command_modifier_and_a_click_open_a_link(cx: &mut TestAppContext) {
+    let text = "See [the guide](https://example.org/guide) or [this](javascript:alert(1)).\n";
+    let (view, cx) = open(cx, text);
+    let block = blocks(&view, cx)[0];
+    let click = |cx: &mut VisualTestContext, offset: usize, secondary: bool| {
+        let at = caret(&view, cx, Position::new(block, offset)) + point(px(2.), px(4.));
+        let modifiers = match secondary {
+            true => cx.update(|_, cx| Modifiers::secondary_key(cx)),
+            false => Modifiers::none(),
+        };
+        let button = MouseButton::Left;
+        cx.simulate_event(MouseDownEvent {
+            position: at,
+            button,
+            click_count: 1,
+            modifiers,
+            ..Default::default()
+        });
+        cx.simulate_event(MouseUpEvent { position: at, button, modifiers, ..Default::default() });
+        settle(cx);
+    };
+    // A plain click in a link places the caret and opens nothing.
+    click(cx, 6, false);
+    assert_eq!(cx.opened_url(), None);
+    assert_eq!(selection(&view, cx), Selection::caret(block, 6));
+    // With the modifier it opens the link and leaves the caret alone.
+    click(cx, 9, true);
+    assert_eq!(cx.opened_url().as_deref(), Some("https://example.org/guide"));
+    assert_eq!(selection(&view, cx), Selection::caret(block, 6));
+    // A link that is not a web or mail address does not open.
+    let unsafe_link = "See the guide or th".len();
+    click(cx, unsafe_link, true);
+    assert_eq!(cx.opened_url().as_deref(), Some("https://example.org/guide"), "nothing new opened");
+    // Outside a link the modifier changes nothing about a click.
+    click(cx, 1, true);
+    assert_eq!(selection(&view, cx), Selection::caret(block, 1));
 }
