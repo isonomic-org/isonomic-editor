@@ -8,6 +8,7 @@
 //! does not apply; nothing here mutates a document.
 
 mod build;
+mod find;
 mod marks;
 mod menu;
 mod normalize;
@@ -17,6 +18,7 @@ mod structure;
 mod text;
 
 pub use build::block_ranges as selection_ranges;
+pub use find::find_text;
 pub use marks::{set_link, toggle_mark};
 pub use menu::{MENU_TRIGGER, choose_menu_entry, menu_query, menu_trigger};
 pub use normalize::normalize;

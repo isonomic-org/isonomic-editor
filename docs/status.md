@@ -2,6 +2,15 @@
 
 Newest first.
 
+## 2026-11-26: find
+
+- Command-F opens a search bar over the top right of the text. Typing looks for the text in every block, ignoring case, selects the first match at or after the selection and brings it into view; Enter and Command-G go on, Shift-Enter and Command-Shift-G go back, round at the ends; Escape closes it. The bar shows "2 of 5", and every match is shaded while it is open (`docs/keys.md`).
+- The search itself is a pure function, `editor_commands::find_text`. A match stays inside one block, matches do not overlap, and both ends are grapheme boundaries, so a letter is not matched apart from a combining mark that follows it.
+- The bar sits beside the text in the view, not inside it, so keys typed in it are not also the editor's. A test types, steps, presses the editor's own shortcuts in the bar and checks the document is untouched; another edits with the search open and sees the matches counted again. Both run on both backends.
+- Tried in a real window on Linux: the bar opens, counts, and the match is selected and in view. Not tried on the Mac.
+
+Not built: replace, whole-word and exact-case options.
+
 ## 2026-11-26: opening a saved document, off the drawing thread
 
 - `EditorState::save` gives the document and its history as bytes. `EditorState::open` reads them back on the calling thread, and `EditorState::load` reads them in the background and hands the state over when it is whole, so a window that is already showing does not stop while a long document opens.

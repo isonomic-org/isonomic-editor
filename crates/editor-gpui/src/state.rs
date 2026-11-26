@@ -13,6 +13,7 @@ use editor_model::{
 use editor_store::Store;
 use ui::{Context, EventEmitter};
 
+use crate::find::Find;
 use crate::menu::InsertMenu;
 
 /// What an [`EditorState`] tells its observers.
@@ -33,6 +34,7 @@ pub struct EditorState {
     /// Text the platform is still composing: block and byte range.
     composing: Option<(BlockId, Range<usize>)>,
     pub(crate) menu: Option<InsertMenu>,
+    pub(crate) find: Option<Find>,
 }
 
 impl EventEmitter<EditorEvent> for EditorState {}
@@ -68,6 +70,7 @@ impl EditorState {
             pending: None,
             composing: None,
             menu: None,
+            find: None,
         };
         state.settle();
         state
@@ -149,6 +152,7 @@ impl EditorState {
 
     fn edited(&mut self, cx: &mut Context<Self>) {
         self.follow_menu();
+        self.refind();
         cx.emit(EditorEvent::Edited);
         cx.notify();
     }

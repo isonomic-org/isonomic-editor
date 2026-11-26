@@ -362,3 +362,27 @@ fn a_joined_change_shares_the_last_undo_step() {
     assert!(s.undo());
     assert_eq!((s.doc().len(), s.markdown().as_str()), (1, "a\n"), "then the new block, alone");
 }
+
+#[test]
+fn finding_text_ignores_case_and_respects_graphemes() {
+    let registry = std::sync::Arc::new(editor_blocks::standard_registry());
+    let mut ids = SeqIds::new(1);
+    let text = "# Aaa\n\nCafe\u{301} and CAFÉ, cafe.\n\n- İstanbul\n";
+    let doc = editor_formats::from_markdown(text, registry, &mut ids);
+    let found = |query: &str| {
+        cmd::find_text(&doc, query)
+            .into_iter()
+            .map(|(id, range)| doc.get(id).unwrap().content.text()[range].to_owned())
+            .collect::<Vec<_>>()
+    };
+    // Matches do not overlap, and an empty query finds nothing.
+    assert_eq!(found("aa"), ["Aa"]);
+    assert!(found("").is_empty());
+    // A letter with a combining mark after it is not split to match.
+    assert_eq!(found("cafe"), ["cafe"]);
+    assert_eq!(found("caf\u{e9}"), ["CAFÉ"]);
+    assert_eq!(found("cafe\u{301}"), ["Cafe\u{301}"]);
+    // A capital whose lower case is two characters matches as a whole.
+    assert_eq!(found("i\u{307}stanbul"), ["İstanbul"]);
+    assert!(found("istanbul").is_empty());
+}

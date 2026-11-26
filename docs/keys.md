@@ -51,6 +51,18 @@ Type `/` at the start of a block of text, or after a space. Keep typing to narro
 | Enter, or a click on an entry | Turn the block into that type |
 | Escape | Close the menu and keep what was typed |
 
+## Find
+
+| Key | What it does |
+|---|---|
+| Command-F (Control-F off macOS) | Open the search bar, looking for the selected text if the selection is inside one block |
+| Typing in the bar | Look for the text, ignoring case, and select the first match at or after the selection |
+| Enter, Command-G | Go to the next match, round to the first after the last |
+| Shift-Enter, Command-Shift-G | Go to the match before |
+| Escape | Close the bar; the last match stays selected |
+
+Every match is shaded while the bar is open, and the bar says which one is selected and how many there are. Matches are looked for again after each edit.
+
 ## Pointer
 
 | Gesture | Does |

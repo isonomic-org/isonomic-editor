@@ -9,6 +9,7 @@ use std::rc::Rc;
 use editor_commands::selection_ranges;
 use editor_model::{BlockId, Document, MarkKind, Position, Selection};
 use ui::base::Scrollbar;
+use ui::base::input::InputState;
 use ui::base::text::editor_host::Caret;
 use ui::component::ActiveTheme as _;
 use ui::{
@@ -45,6 +46,8 @@ pub struct EditorView {
     pub(crate) blink: Blink,
     /// Where the insert menu was last drawn.
     pub(crate) menu_drawn: Rc<Cell<Option<Bounds<Pixels>>>>,
+    /// The search bar's field, made the first time the bar opens.
+    pub(crate) find_input: Option<Entity<InputState>>,
     /// The rows: every block in document order, of which the list
     /// draws the ones in view.
     pub(crate) list: ListState,
@@ -76,6 +79,7 @@ impl EditorView {
             drag_past: None,
             blink: Blink::default(),
             menu_drawn: Rc::default(),
+            find_input: None,
             list: ListState::new(0, ListAlignment::Top, px(OVERDRAW)),
             listed: Rc::default(),
             drawn: Drawn::default(),
@@ -189,6 +193,20 @@ impl EditorView {
     }
 }
 
+impl EditorView {
+    /// A highlight under every match of the open search, by leaf key.
+    /// The selection is drawn over the one it is on.
+    fn found_decorations(&self, color: Hsla, cx: &App) -> HashMap<u64, Vec<(Range<usize>, Hsla)>> {
+        let mut out: HashMap<u64, Vec<(Range<usize>, Hsla)>> = HashMap::new();
+        let Some(find) = self.state.read(cx).found() else { return out };
+        for (id, range) in find.matches() {
+            let key = self.keys.borrow_mut().of(*id);
+            out.entry(key).or_default().push((range.clone(), color));
+        }
+        out
+    }
+}
+
 impl Focusable for EditorView {
     fn focus_handle(&self, _: &App) -> FocusHandle {
         self.focus.clone()
@@ -224,7 +242,10 @@ impl Render for EditorView {
             // list's view first; the surface then lines up the caret.
             self.list.scroll_to_reveal_item(row);
         }
-        let decorations = self.decorations(&doc, &selection, selection_color);
+        let mut decorations = self.found_decorations(cx.theme().muted, cx);
+        for (key, ranges) in self.decorations(&doc, &selection, selection_color) {
+            decorations.entry(key).or_default().extend(ranges);
+        }
         self.drawn.borrow_mut().clear();
         let rows = Rows {
             doc,
@@ -253,7 +274,7 @@ impl Render for EditorView {
             again: self.reveal_again.clone(),
             estimated: self.estimated.clone(),
         };
-        div()
+        let editor = div()
             .id("isonomic-editor")
             .key_context(CONTEXT)
             .track_focus(&self.focus)
@@ -279,9 +300,25 @@ impl Render for EditorView {
                     None => s.newline(cx),
                 })
             }))
+            .on_action(cx.listener(|this, _: &Cancel, _, cx| {
+                this.edit(cx, |state, cx| {
+                    // Escape closes the insert menu first, then the search.
+                    if state.insert_menu().is_some() {
+                        state.close_menu(cx);
+                    } else {
+                        state.end_find(cx);
+                    }
+                })
+            }))
+            .on_action(cx.listener(|this, _: &Find, window, cx| this.open_find(window, cx)))
             .on_action(
-                cx.listener(|this, _: &Cancel, _, cx| this.edit(cx, |s, cx| s.close_menu(cx))),
+                cx.listener(|this, _: &FindNext, _, cx| {
+                    this.edit(cx, |s, cx| s.find_next(true, cx))
+                }),
             )
+            .on_action(cx.listener(|this, _: &FindPrevious, _, cx| {
+                this.edit(cx, |s, cx| s.find_next(false, cx))
+            }))
             .on_action(cx.listener(|this, _: &Indent, _, cx| this.edit(cx, |s, cx| s.indent(cx))))
             .on_action(cx.listener(|this, _: &Outdent, _, cx| this.edit(cx, |s, cx| s.outdent(cx))))
             .on_action(cx.listener(|this, _: &Undo, _, cx| this.edit(cx, |s, cx| s.undo(cx))))
@@ -390,7 +427,10 @@ impl Render for EditorView {
                     .bottom_0()
                     .w(Scrollbar::width())
                     .child(Scrollbar::vertical(&self.list).viewport_from_layout()),
-            )
+            );
+        // The search bar sits beside the text, not inside it, so that
+        // keys typed in it are not also the editor's.
+        div().relative().size_full().child(editor).children(self.find_bar(cx))
     }
 }
 

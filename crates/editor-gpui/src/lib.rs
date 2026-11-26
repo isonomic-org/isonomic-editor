@@ -16,6 +16,7 @@ extern crate ui as gpui;
 
 mod actions;
 mod blink;
+mod find;
 mod input;
 mod menu;
 mod motion;
@@ -29,6 +30,7 @@ mod units;
 mod view;
 
 pub use actions::*;
+pub use find::Find;
 pub use menu::InsertMenu;
 pub use state::{EditorEvent, EditorState};
 pub use view::EditorView;
