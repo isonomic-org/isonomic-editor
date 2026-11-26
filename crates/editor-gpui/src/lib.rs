@@ -18,6 +18,7 @@ mod actions;
 mod blink;
 mod find;
 mod input;
+mod link;
 mod menu;
 mod motion;
 mod moves;
@@ -31,6 +32,7 @@ mod view;
 
 pub use actions::*;
 pub use find::Find;
+pub use link::openable;
 pub use menu::InsertMenu;
 pub use state::{EditorEvent, EditorState};
 pub use view::EditorView;

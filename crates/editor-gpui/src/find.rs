@@ -152,7 +152,11 @@ impl EditorView {
             Some(seed) => seed,
             None => input.read(cx).value().to_string(),
         };
-        input.update(cx, |input, cx| input.set_value(query.clone(), window, cx));
+        // What is in the bar is selected, so typing replaces it.
+        input.update(cx, |input, cx| {
+            input.set_value(query.clone(), window, cx);
+            input.select_all(window, cx);
+        });
         self.state.update(cx, |state, cx| state.find(&query, cx));
         input.focus_handle(cx).focus(window, cx);
     }

@@ -7,6 +7,8 @@ use ui::{App, KeyBinding};
 pub const CONTEXT: &str = "IsonomicEditor";
 /// The key context of the search bar.
 pub const FIND_CONTEXT: &str = "IsonomicEditorFind";
+/// The key context of the link bar.
+pub const LINK_CONTEXT: &str = "IsonomicEditorLink";
 
 ui::actions!(
     editor,
@@ -37,6 +39,7 @@ ui::actions!(
         Find,
         FindNext,
         FindPrevious,
+        EditLink,
         MoveWordLeft,
         MoveWordRight,
         SelectWordLeft,
@@ -132,6 +135,7 @@ pub(crate) fn bind_keys(cx: &mut App) {
         KeyBinding::new(DOCUMENT_EDGES[3], SelectToDocumentEnd, context),
         KeyBinding::new(secondary!("a"), SelectAll, context),
         KeyBinding::new(secondary!("f"), Find, context),
+        KeyBinding::new(secondary!("k"), EditLink, context),
         KeyBinding::new(secondary!("g"), FindNext, context),
         KeyBinding::new(secondary!("shift-g"), FindPrevious, context),
         KeyBinding::new(secondary!("b"), ToggleBold, context),
@@ -143,6 +147,7 @@ pub(crate) fn bind_keys(cx: &mut App) {
         KeyBinding::new(secondary!("x"), Cut, context),
         KeyBinding::new(secondary!("v"), Paste, context),
     ]);
+    cx.bind_keys([KeyBinding::new("escape", Cancel, Some(LINK_CONTEXT))]);
     let find = Some(FIND_CONTEXT);
     cx.bind_keys([
         KeyBinding::new("escape", Cancel, find),
