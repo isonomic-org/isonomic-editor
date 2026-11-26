@@ -5,6 +5,8 @@ use ui::{App, KeyBinding};
 
 /// The key context the editor view sets; bindings apply only inside.
 pub const CONTEXT: &str = "IsonomicEditor";
+/// The key context of the search bar.
+pub const FIND_CONTEXT: &str = "IsonomicEditorFind";
 
 ui::actions!(
     editor,
@@ -32,6 +34,9 @@ ui::actions!(
         SelectToEnd,
         SelectAll,
         Cancel,
+        Find,
+        FindNext,
+        FindPrevious,
         MoveWordLeft,
         MoveWordRight,
         SelectWordLeft,
@@ -126,6 +131,9 @@ pub(crate) fn bind_keys(cx: &mut App) {
         KeyBinding::new(DOCUMENT_EDGES[2], SelectToDocumentStart, context),
         KeyBinding::new(DOCUMENT_EDGES[3], SelectToDocumentEnd, context),
         KeyBinding::new(secondary!("a"), SelectAll, context),
+        KeyBinding::new(secondary!("f"), Find, context),
+        KeyBinding::new(secondary!("g"), FindNext, context),
+        KeyBinding::new(secondary!("shift-g"), FindPrevious, context),
         KeyBinding::new(secondary!("b"), ToggleBold, context),
         KeyBinding::new(secondary!("i"), ToggleItalic, context),
         KeyBinding::new(secondary!("u"), ToggleUnderline, context),
@@ -134,5 +142,11 @@ pub(crate) fn bind_keys(cx: &mut App) {
         KeyBinding::new(secondary!("c"), Copy, context),
         KeyBinding::new(secondary!("x"), Cut, context),
         KeyBinding::new(secondary!("v"), Paste, context),
+    ]);
+    let find = Some(FIND_CONTEXT);
+    cx.bind_keys([
+        KeyBinding::new("escape", Cancel, find),
+        KeyBinding::new(secondary!("g"), FindNext, find),
+        KeyBinding::new(secondary!("shift-g"), FindPrevious, find),
     ]);
 }
