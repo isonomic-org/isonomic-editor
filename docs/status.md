@@ -2,6 +2,13 @@
 
 Newest first.
 
+## 2026-11-26: builds on the optional faster backend
+
+- `editor-gpui` has a `fast` feature that builds the view on the component library's optional faster backend. It is off by default, and a host turns it on for its whole build or not at all, so the grid has the same feature.
+- All 61 tests pass on both backends. The shared CI job builds with every feature, which is the faster backend; the headless job builds the default one, so every pull request is checked on both.
+- The lock file holds the faster backend's packages at the version the component library was built against. Later versions add a blanket implementation the library does not compile with at its pinned revision.
+- `frames` on the two-core Linux machine, 10,000 blocks: typing is 2.7 ms a frame on either backend, and moving the caret 2.9 ms on the default and 2.6 ms on the faster one. The editor draws about twenty rows a frame, so there is little for a faster painter to save. Not measured on the Mac.
+
 ## 2026-11-25: measured on the Intel Mac
 
 macOS 15.7 on a 2.6 GHz six-core Intel laptop, native renderer, release build, three runs that agreed. The machine was not idle (load average 7 to 12).
