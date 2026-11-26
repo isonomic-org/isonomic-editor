@@ -21,6 +21,7 @@ mod menu;
 mod motion;
 mod moves;
 mod nodes;
+mod open;
 mod rows;
 mod state;
 mod surface;

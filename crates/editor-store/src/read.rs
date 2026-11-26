@@ -10,7 +10,8 @@ use editor_model::{
     BlockDraft, BlockId, BlockKind, Changes, Document, InlineText, Limits, Op, Props, Registry,
 };
 use loro::{
-    Container, LoroMap, LoroText, LoroTree, LoroValue, TreeID, TreeParentId, ValueOrContainer,
+    Container, ContainerTrait as _, LoroMap, LoroText, LoroTree, LoroValue, TreeID, TreeParentId,
+    ValueOrContainer,
 };
 
 use crate::convert;
@@ -40,8 +41,10 @@ fn child_text(meta: &LoroMap) -> Option<LoroText> {
     }
 }
 
+type Fields = (BlockId, Option<String>, Props, Props);
+
 /// A block's ID, type, properties and tunes, from its map's values.
-fn fields(meta: &LoroMap) -> Option<(BlockId, Option<String>, Props, Props)> {
+fn fields(meta: &LoroMap) -> Option<Fields> {
     let LoroValue::Map(map) = meta.get_value() else { return None };
     let mut id = None;
     let mut kind = None;
@@ -74,34 +77,84 @@ pub fn block_of(
 
 /// Reads the whole tree. Nodes that are malformed, duplicated or past
 /// a limit are skipped with everything under them; nothing panics.
+///
+/// The library keeps each block's two objects compressed, in the order
+/// of their identifiers, and decodes one the first time it is read. A
+/// long document read in document order jumps about in that store and
+/// decodes the same stretches again and again, so the maps are read in
+/// the store's order, then the texts, and the snapshot is put together
+/// in document order afterwards.
 pub fn materialize(
     tree: &LoroTree,
     registry: &Arc<Registry>,
     limits: &Limits,
 ) -> (Document, HashMap<BlockId, Handles>) {
-    let mut doc = Document::with_limits(registry.clone(), limits.clone());
-    let mut handles = HashMap::new();
+    // Document order: each node with the place of its parent in the list.
+    let mut nodes: Vec<(Option<usize>, TreeID)> = Vec::new();
     let roots = tree.children(TreeParentId::Root).unwrap_or_default();
-    let mut stack: Vec<(Option<BlockId>, TreeID)> =
+    let mut stack: Vec<(Option<usize>, TreeID)> =
         roots.into_iter().rev().map(|node| (None, node)).collect();
     while let Some((parent, node)) = stack.pop() {
-        let Ok(meta) = tree.get_meta(node) else { continue };
-        let (Some((id, kind, props, tunes)), Some(text)) = (fields(&meta), child_text(&meta))
+        let place = nodes.len();
+        nodes.push((parent, node));
+        let children = tree.children(TreeParentId::Node(node)).unwrap_or_default();
+        stack.extend(children.into_iter().rev().map(|child| (Some(place), child)));
+    }
+
+    let metas: Vec<Option<LoroMap>> =
+        nodes.iter().map(|(_, node)| tree.get_meta(*node).ok()).collect();
+    let mut read: Vec<Option<(Fields, LoroText)>> = Vec::new();
+    read.resize_with(nodes.len(), || None);
+    for place in in_store_order(&metas, |meta| meta.id().to_bytes()) {
+        let Some(meta) = &metas[place] else { continue };
+        read[place] = fields(meta).zip(child_text(meta));
+    }
+    let mut texts: Vec<Option<InlineText>> = Vec::new();
+    texts.resize_with(nodes.len(), || None);
+    for place in in_store_order(&read, |(_, text)| text.id().to_bytes()) {
+        texts[place] = read[place].as_ref().map(|(_, text)| text_of(text));
+    }
+
+    let mut doc = Document::with_limits(registry.clone(), limits.clone());
+    let mut handles = HashMap::with_capacity(nodes.len());
+    // The block each place became, for its children to hang off; a
+    // block that was refused takes everything under it with it.
+    let mut placed: Vec<Option<BlockId>> = vec![None; nodes.len()];
+    for (place, (parent, node)) in nodes.iter().enumerate() {
+        let parent = match parent {
+            Some(parent) => match placed[*parent] {
+                Some(id) => Some(id),
+                None => continue,
+            },
+            None => None,
+        };
+        let (Some(((id, kind, props, tunes), text)), Some(inline), Some(meta)) =
+            (read[place].take(), texts[place].take(), metas[place].clone())
         else {
             continue;
         };
         let kind = kind.unwrap_or_else(|| registry.default_kind().to_string());
-        let draft =
-            BlockDraft { id, kind: BlockKind::new(&kind), props, tunes, text: text_of(&text) };
+        let draft = BlockDraft { id, kind: BlockKind::new(&kind), props, tunes, text: inline };
         let index = doc.children(parent).len();
         if doc.apply(&Op::InsertBlock { parent, index, block: draft }).is_err() {
             continue;
         }
-        handles.insert(id, Handles { node, meta, text });
-        let children = tree.children(TreeParentId::Node(node)).unwrap_or_default();
-        stack.extend(children.into_iter().rev().map(|child| (Some(id), child)));
+        placed[place] = Some(id);
+        handles.insert(id, Handles { node: *node, meta, text });
     }
     (doc, handles)
+}
+
+/// The places of the items that are there, in the order the library
+/// stores what `key` names.
+fn in_store_order<T>(items: &[Option<T>], key: impl Fn(&T) -> Vec<u8>) -> Vec<usize> {
+    let mut order: Vec<(Vec<u8>, usize)> = items
+        .iter()
+        .enumerate()
+        .filter_map(|(place, item)| item.as_ref().map(|item| (key(item), place)))
+        .collect();
+    order.sort_unstable();
+    order.into_iter().map(|(_, place)| place).collect()
 }
 
 /// What differs between two snapshots.

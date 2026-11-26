@@ -2,6 +2,22 @@
 
 Newest first.
 
+## 2026-11-26: opening a saved document, off the drawing thread
+
+- `EditorState::save` gives the document and its history as bytes. `EditorState::open` reads them back on the calling thread, and `EditorState::load` reads them in the background and hands the state over when it is whole, so a window that is already showing does not stop while a long document opens.
+- Empty, truncated, corrupted and unrelated bytes are refused with an error by both.
+- `frames` now measures what the budget is about, opening saved bytes. It had been timing a Markdown import, which is slower and a different thing. On the two-core Linux machine, 10,000 blocks, three runs:
+
+| | time | budget |
+|---|---|---|
+| Open saved bytes to the first frame | 185 ms: 177 ms reading in the background, 8 ms drawing | under 150 ms, off the main thread |
+| Read the same document from Markdown and save it | 0.56 to 0.60 s | none |
+
+**Opening no longer holds the drawing thread: it takes one 8 ms frame of it. It is still over its budget, by about a quarter on this machine.** Nearly all of the reading is the replication library decoding two stored objects for each block the first time they are read (about 105 ms), and building the tree's order (about 45 ms); the editor's own part of it is a few milliseconds. `docs/spec/view.md` had "41 ms" for the store alone and "463 ms" for 50,000 blocks; the store's `bench` gave 168 ms and 1.7 s today.
+- The store now reads the blocks' stored objects in the order the library keeps them and puts the snapshot together in document order afterwards. A long document read in document order made the library decode the same compressed stretches repeatedly. `bench` after the change: 148 ms at 10,000 blocks and 1.3 s at 49,000, about half of the second being the library building the order of a tree with that many siblings. The table in the specification has these numbers, and marks the 50,000-block budget (under 1 s) as missed.
+
+What would close the gap is showing the first screen from the blocks at the top while the rest are read. It is not built. Not measured on the Mac.
+
 ## 2026-11-26: builds on the optional faster backend
 
 - `editor-gpui` has a `fast` feature that builds the view on the component library's optional faster backend. It is off by default, and a host turns it on for its whole build or not at all, so the grid has the same feature.
