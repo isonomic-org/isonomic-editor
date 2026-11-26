@@ -58,14 +58,14 @@ Accessibility in this framework is carried by elements: role, name and state. Ea
 
 ## B16. Performance budgets
 
-Budgets are for the Intel test Mac, release build. The "measured" column is the store alone on a 2-core 2.1 GHz Linux machine; it shows how much of each budget the store uses, not that the budget is met. Two rows have now been measured whole on the Intel Mac, for the editor's share before the renderer (`docs/status.md`): typing is 2.9 ms a frame at 10,000 blocks, inside its budget; opening 10,000 blocks to the first frame is 0.77 s on the main thread, **which does not meet its budget**.
+Budgets are for the Intel test Mac, release build. The "measured" column is the store alone on a 2-core 2.1 GHz Linux machine; it shows how much of each budget the store uses, not that the budget is met. Two rows have now been measured whole on the Intel Mac, for the editor's share before the renderer (`docs/status.md`): typing is 2.9 ms a frame at 10,000 blocks, inside its budget; opening was first timed there as a Markdown import on the main thread, 0.77 s. Opening saved bytes now reads in the background (`EditorState::load`) and is 185 ms to the first frame on the Linux machine, 8 ms of it on the drawing thread, **which is off the main thread and still over its budget**.
 
 | Measure | Budget | Store alone, measured |
 |---|---|---|
 | Keystroke to frame, 5,000-block document | p95 under 8 ms | under 0.01 ms |
 | Blocks re-projected per keystroke | 1 leaf (counter test) | n/a |
-| Open a 10,000-block document to first frame | under 150 ms, off the main thread | 41 ms |
-| Open a 50,000-block document | under 1 s, behind a skeleton | 463 ms |
+| Open a 10,000-block document to first frame | under 150 ms, off the main thread | 148 ms |
+| Open a 50,000-block document | under 1 s, behind a skeleton | 1.3 s at 49,000 blocks, **over its budget** |
 | Scroll | 60 fps, no blank frames | n/a |
 | Apply a remote update of 100 operations | under 4 ms | 1.1 ms |
 | Memory, 10,000 blocks, no images | under 90 MB | 21 MB after a cold open |

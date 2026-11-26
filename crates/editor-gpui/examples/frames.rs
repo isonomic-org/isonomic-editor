@@ -66,12 +66,28 @@ fn main() -> ExitCode {
         show: false,
         ..Default::default()
     };
+    // Save a document read from Markdown, then open the saved bytes
+    // the way a host does: read off the drawing thread, then make the
+    // state and draw the first frame on it.
     let text = document(blocks);
-    let mut made = None;
     let started = Instant::now();
+    let saved = cx.update(|cx| {
+        let state = cx.new(|cx| EditorState::from_markdown(&text, 1, cx));
+        state.read(cx).save()
+    });
+    let Ok(saved) = saved else { return ExitCode::FAILURE };
+    let imported = started.elapsed();
+
+    let started = Instant::now();
+    let Ok(read) = std::thread::spawn(move || EditorState::open(&saved, 2)).join() else {
+        return ExitCode::FAILURE;
+    };
+    let Ok(read) = read else { return ExitCode::FAILURE };
+    let reading = started.elapsed();
+    let mut made = None;
     let opened = cx.update(|cx| {
         ui::open_window(options, cx, |_, cx| {
-            let state = cx.new(|cx| EditorState::from_markdown(&text, 1, cx));
+            let state = cx.new(|_| read);
             made = Some(state.clone());
             cx.new(|cx| EditorView::new(state, cx))
         })
@@ -80,12 +96,25 @@ fn main() -> ExitCode {
         eprintln!("could not open an offscreen window");
         return ExitCode::FAILURE;
     };
+    let drawing = Instant::now();
     let first = cx.update_window(handle, |_, window, cx| window.draw(cx).clear(cx));
     if first.is_err() {
         return ExitCode::FAILURE;
     }
+    let drawing = drawing.elapsed();
     let count = cx.update(|cx| state.read(cx).snapshot().len());
-    println!("{count} blocks; opened and drew the first frame in {:.0?}", started.elapsed());
+    let ms = |time: Duration| time.as_secs_f64() * 1e3;
+    println!("{count} blocks");
+    println!("read from Markdown and saved         {:>6.0} ms", ms(imported));
+    // Making the window is the host's cost and the same for any
+    // document, so it is left out.
+    println!(
+        "opened from saved bytes              {:>6.0} ms to the first frame: {:.0} ms reading, off \
+         the drawing thread, and {:.1} ms drawing",
+        ms(reading + drawing),
+        ms(reading),
+        ms(drawing)
+    );
 
     // Type in the middle of the document, one character a frame.
     let middle = cx.update(|cx| state.read(cx).snapshot().flat()[count / 2]);
