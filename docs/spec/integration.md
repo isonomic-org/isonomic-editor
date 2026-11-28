@@ -54,11 +54,11 @@ Agent edits carry the agent's actor identity, so they are attributed and undone 
 
 - **Isonomic UI.** Reached only through `ui`. Requests R1 to R6 go to `isonomic-ui/docs/requests.md`. Reused as is: inputs, popovers, menus, the code highlighter, the scrollbar. Not reused: the virtual list (B9).
 - **Pin parity.** This repository's Isonomic UI pin must equal the SDK's. `cargo xtask pins` compares them and CI fails on a difference, so the window never links two copies.
-- **SDK.** The SDK app crate already reserves an empty `editor` module behind its `editor` feature; M4 fills it. Two requests: S1, a documents interface (B5); and a decision on where the adapters live. The SDK is Apache-2.0 and the engines are GPL-3.0-or-later, so an adapter that links an engine is GPL. The recommendation is to keep adapters in the window repository, or in a GPL crate of their own, and leave the SDK's own code free of engine dependencies beyond the feature-gated re-export. Both are shared-contract changes and take the `needs-master` label.
+- **SDK.** The SDK app crate already reserves an empty `editor` module behind its `editor` feature; M4 fills it. Two requests: S1, a documents interface (B5); and a decision on where the adapters live. The SDK and the engines are all GPL-3.0-or-later since 28 Nov 2026, so the licence no longer decides this. The recommendation is still to keep adapters in the window repository, or in a GPL crate of their own, and leave the SDK's own code free of engine dependencies beyond the feature-gated re-export. Both are shared-contract changes and take the `needs-master` label.
 - **Isonomic Views.** A view block embeds a view. Request V1: a host slot component, so a view can contain content the host draws (B6). Later, an editor component gives artifacts rich text.
 - **Isonomic Grid.** A grid block embeds a grid over a data source the host supplies. The editor's own table block stays a simple table; it does not use the grid.
 - **Engine.** Documents are stored by the Capsule (B5).
-- **Formats as interface.** The licensing decision makes interface layers Apache-2.0. The canonical document format and the block manifest are interfaces others should be able to implement. Recommendation: publish their specifications under Apache-2.0 beside the views document format, while this implementation stays GPL.
+- **Formats as interface.** Since 28 Nov 2026 every open-source Isonomic repository is GPL-3.0-or-later, interface layers included. The canonical document format and the block manifest are interfaces others should be able to implement. Open question for the owner: the licence their specifications are published under, beside the views document format.
 
 ## B19. Limits
 

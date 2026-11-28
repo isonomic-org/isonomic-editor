@@ -56,7 +56,7 @@ The editor draws every block through the text seam (`base::text::editor_host`) a
 
 **Need.** In the SDK's app crate, behind the `editor` feature that already reserves an empty `editor` module: a way to open a document by ID and get its snapshot bytes, to send local updates and receive remote ones as they arrive, and to write a history checkpoint. The editor's store already imports and exports snapshots and updates in the replicated format, so the interface carries opaque bytes and never needs to know what is in them.
 
-**Also to decide.** Where the adapter lives. The SDK is Apache-2.0 and this engine is GPL-3.0-or-later, so an adapter that links the engine is GPL. Recommendation: the adapter lives where both are already linked, or in a GPL crate of its own, and the SDK's own code stays free of engine dependencies beyond the feature-gated re-export.
+**Also to decide.** Where the adapter lives. The SDK and this engine are both GPL-3.0-or-later since 28 Nov 2026, so the licence no longer decides this; keeping the SDK free of engine dependencies still does. Recommendation: the adapter lives where both are already linked, or in a GPL crate of its own, and the SDK's own code stays free of engine dependencies beyond the feature-gated re-export.
 
 **Label.** A shared-contract change: `needs-master`.
 
